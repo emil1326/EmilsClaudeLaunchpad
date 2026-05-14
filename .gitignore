@@ -1,0 +1,23 @@
+# .NET build output
+bin/
+obj/
+
+# Publish output
+publish/
+Releases/
+
+# IDE / OS
+.vs/
+.idea/
+*.user
+*.suo
+*.DotSettings.user
+.DS_Store
+Thumbs.db
+
+# Velopack cache
+.velopack/
+
+# Local secrets (just in case)
+*.pfx
+*.snk
