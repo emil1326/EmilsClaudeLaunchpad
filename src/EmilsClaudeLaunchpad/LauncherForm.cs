@@ -9,6 +9,15 @@ namespace EmilsClaudeLaunchpad;
 
 public sealed class LauncherForm : Form
 {
+    private static readonly Color BgColor = Color.FromArgb(24, 24, 28);
+    private static readonly Color SurfaceColor = Color.FromArgb(36, 36, 42);
+    private static readonly Color SurfaceHover = Color.FromArgb(48, 48, 56);
+    private static readonly Color BorderColor = Color.FromArgb(52, 52, 60);
+    private static readonly Color TextPrimary = Color.FromArgb(232, 232, 235);
+    private static readonly Color TextMuted = Color.FromArgb(140, 140, 150);
+    private static readonly Color AccentBlue = Color.FromArgb(72, 124, 200);
+    private static readonly Color AccentBlueHover = Color.FromArgb(92, 144, 220);
+
     private readonly SessionLauncher _launcher;
     private readonly UpdateManager _updater;
     private readonly Action<string, string> _notify;
@@ -24,17 +33,29 @@ public sealed class LauncherForm : Form
         _notify = notify;
 
         Text = "Emil's Claude Launchpad";
-        FormBorderStyle = FormBorderStyle.FixedToolWindow;
+        FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        ClientSize = new Size(340, 480);
-        BackColor = Color.FromArgb(28, 28, 32);
-        ForeColor = Color.Gainsboro;
+        ClientSize = new Size(320, 440);
+        BackColor = BgColor;
+        ForeColor = TextPrimary;
         Font = new Font("Segoe UI", 9F);
+        Padding = new Padding(10);
+        DoubleBuffered = true;
+        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+        KeyPreview = true;
+        KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) Hide(); };
 
         BuildLayout();
         Deactivate += (_, _) => Hide();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        e.Graphics.Clear(BgColor);
+        using var borderPen = new Pen(BorderColor, 1);
+        e.Graphics.DrawRectangle(borderPen, 0, 0, Width - 1, Height - 1);
     }
 
     private void BuildLayout()
@@ -42,13 +63,36 @@ public sealed class LauncherForm : Form
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 7,
-            Padding = new Padding(12),
-            BackColor = BackColor,
+            ColumnCount = 1,
+            BackColor = BgColor,
         };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        var headerPanel = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 28,
+            BackColor = BgColor,
+            Margin = new Padding(0, 0, 0, 8),
+        };
+        var titleLabel = new Label
+        {
+            Text = "Emil's Claude Launchpad",
+            ForeColor = TextPrimary,
+            BackColor = BgColor,
+            Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+            AutoSize = false,
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(2, 0, 0, 0),
+        };
+        headerPanel.Controls.Add(titleLabel);
+        root.Controls.Add(headerPanel, 0, 0);
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+
+        var headerDivider = new Panel { Height = 1, Dock = DockStyle.Top, BackColor = BorderColor, Margin = new Padding(0, 0, 0, 8) };
+        root.Controls.Add(headerDivider, 0, 1);
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 9));
 
         _sessionsPanel = new FlowLayoutPanel
         {
@@ -56,56 +100,90 @@ public sealed class LauncherForm : Form
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
             AutoScroll = true,
-            BackColor = BackColor,
+            BackColor = BgColor,
+            Margin = new Padding(0, 0, 0, 8),
         };
-        root.Controls.Add(_sessionsPanel, 0, 0);
-        root.SetColumnSpan(_sessionsPanel, 2);
+        root.Controls.Add(_sessionsPanel, 0, 2);
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var launchAll = MakeFlatButton("Launch all", Color.FromArgb(48, 80, 140));
-        launchAll.Click += async (_, _) => await OnLaunchAllAsync();
-        root.Controls.Add(launchAll, 0, 1);
-        root.SetColumnSpan(launchAll, 2);
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        var divider1 = new Panel { Height = 1, Dock = DockStyle.Top, BackColor = BorderColor, Margin = new Padding(0, 4, 0, 8) };
+        root.Controls.Add(divider1, 0, 3);
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 13));
 
-        var editBtn = MakeFlatButton("Edit config", Color.FromArgb(50, 50, 56));
+        var launchAll = MakePrimaryButton("Launch all");
+        launchAll.Click += async (_, _) => await OnLaunchAllAsync();
+        launchAll.Height = 34;
+        launchAll.Dock = DockStyle.Top;
+        launchAll.Margin = new Padding(0, 0, 0, 8);
+        root.Controls.Add(launchAll, 0, 4);
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+
+        var actionRow = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            ColumnCount = 3,
+            RowCount = 1,
+            Height = 30,
+            BackColor = BgColor,
+            Margin = new Padding(0, 0, 0, 8),
+        };
+        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
+        var editBtn = MakeSecondaryButton("Edit");
         editBtn.Click += (_, _) => OnEditConfig();
-        var reloadBtn = MakeFlatButton("Reload", Color.FromArgb(50, 50, 56));
+        var reloadBtn = MakeSecondaryButton("Reload");
         reloadBtn.Click += (_, _) => ReloadConfig();
-        root.Controls.Add(editBtn, 0, 2);
-        root.Controls.Add(reloadBtn, 1, 2);
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        var updatesBtn = MakeSecondaryButton("Updates");
+        updatesBtn.Click += async (_, _) => await _updater.CheckAndApplyAsync();
+        editBtn.Dock = reloadBtn.Dock = updatesBtn.Dock = DockStyle.Fill;
+        editBtn.Margin = new Padding(0, 0, 3, 0);
+        reloadBtn.Margin = new Padding(3, 0, 3, 0);
+        updatesBtn.Margin = new Padding(3, 0, 0, 0);
+        actionRow.Controls.Add(editBtn, 0, 0);
+        actionRow.Controls.Add(reloadBtn, 1, 0);
+        actionRow.Controls.Add(updatesBtn, 2, 0);
+        root.Controls.Add(actionRow, 0, 5);
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
 
         _autostartCheckbox = new CheckBox
         {
             Text = "Autostart at login",
-            Dock = DockStyle.Fill,
-            ForeColor = Color.Gainsboro,
-            BackColor = BackColor,
-            Margin = new Padding(0, 8, 0, 0),
+            Dock = DockStyle.Top,
+            ForeColor = TextPrimary,
+            BackColor = BgColor,
+            Margin = new Padding(2, 0, 0, 8),
+            FlatStyle = FlatStyle.Flat,
+            AutoSize = true,
         };
         _autostartCheckbox.CheckedChanged += OnAutostartToggled;
-        root.Controls.Add(_autostartCheckbox, 0, 3);
-        root.SetColumnSpan(_autostartCheckbox, 2);
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        root.Controls.Add(_autostartCheckbox, 0, 6);
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
 
-        var updatesBtn = MakeFlatButton("Check for updates", Color.FromArgb(50, 50, 56));
-        updatesBtn.Click += async (_, _) => await _updater.CheckAndApplyAsync();
-        root.Controls.Add(updatesBtn, 0, 4);
-        root.SetColumnSpan(updatesBtn, 2);
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-
+        var footer = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            ColumnCount = 2,
+            RowCount = 1,
+            Height = 28,
+            BackColor = BgColor,
+        };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
         var versionLabel = new Label
         {
             Text = $"v{GetAssemblyVersion()}",
-            ForeColor = Color.DimGray,
+            ForeColor = TextMuted,
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(2, 0, 0, 0),
         };
-        var exitBtn = MakeFlatButton("Exit", Color.FromArgb(80, 40, 40));
+        var exitBtn = MakeSecondaryButton("Exit");
         exitBtn.Click += (_, _) => Application.Exit();
-        root.Controls.Add(versionLabel, 0, 5);
-        root.Controls.Add(exitBtn, 1, 5);
+        exitBtn.Dock = DockStyle.Fill;
+        footer.Controls.Add(versionLabel, 0, 0);
+        footer.Controls.Add(exitBtn, 1, 0);
+        root.Controls.Add(footer, 0, 7);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
 
         Controls.Add(root);
@@ -146,10 +224,10 @@ public sealed class LauncherForm : Form
         {
             var empty = new Label
             {
-                Text = "No sessions configured.\nClick 'Edit config' to add some.",
-                ForeColor = Color.DimGray,
+                Text = "No sessions configured.\nClick 'Edit' to add some.",
+                ForeColor = TextMuted,
                 AutoSize = false,
-                Size = new Size(_sessionsPanel.ClientSize.Width - 8, 60),
+                Size = new Size(_sessionsPanel.ClientSize.Width - 4, 80),
                 TextAlign = ContentAlignment.MiddleCenter,
             };
             _sessionsPanel.Controls.Add(empty);
@@ -158,10 +236,10 @@ public sealed class LauncherForm : Form
         {
             foreach (var session in _config.Sessions)
             {
-                var color = PickSessionColor(session);
-                var btn = MakeFlatButton(session.Title, color);
-                btn.Width = _sessionsPanel.ClientSize.Width - 8;
-                btn.Height = 40;
+                var accent = PickSessionColor(session);
+                var btn = new SessionButton(session.Title, accent);
+                btn.Width = _sessionsPanel.ClientSize.Width - 4;
+                btn.Height = 36;
                 btn.Margin = new Padding(0, 0, 0, 6);
                 btn.Click += (_, _) => OnLaunchSession(session);
                 _sessionsPanel.Controls.Add(btn);
@@ -212,7 +290,7 @@ public sealed class LauncherForm : Form
     private static Color PickSessionColor(SessionPreset session)
     {
         var firstColor = session.EnumerateTabs().FirstOrDefault()?.TabColor;
-        return ParseHexColor(firstColor) ?? Color.FromArgb(60, 60, 70);
+        return ParseHexColor(firstColor) ?? Color.FromArgb(120, 120, 130);
     }
 
     private static Color? ParseHexColor(string? hex)
@@ -233,24 +311,36 @@ public sealed class LauncherForm : Form
         }
     }
 
-    private static Color ContrastForeground(Color bg)
-    {
-        var luminance = (0.299 * bg.R + 0.587 * bg.G + 0.114 * bg.B) / 255.0;
-        return luminance > 0.55 ? Color.Black : Color.White;
-    }
-
-    private static Button MakeFlatButton(string text, Color bg)
+    private static Button MakePrimaryButton(string text)
     {
         var btn = new Button
         {
             Text = text,
-            BackColor = bg,
-            ForeColor = ContrastForeground(bg),
+            BackColor = AccentBlue,
+            ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat,
-            AutoSize = false,
-            Margin = new Padding(2),
+            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+            UseVisualStyleBackColor = false,
         };
         btn.FlatAppearance.BorderSize = 0;
+        btn.FlatAppearance.MouseOverBackColor = AccentBlueHover;
+        btn.FlatAppearance.MouseDownBackColor = AccentBlue;
+        return btn;
+    }
+
+    private static Button MakeSecondaryButton(string text)
+    {
+        var btn = new Button
+        {
+            Text = text,
+            BackColor = SurfaceColor,
+            ForeColor = TextPrimary,
+            FlatStyle = FlatStyle.Flat,
+            UseVisualStyleBackColor = false,
+        };
+        btn.FlatAppearance.BorderSize = 0;
+        btn.FlatAppearance.MouseOverBackColor = SurfaceHover;
+        btn.FlatAppearance.MouseDownBackColor = SurfaceColor;
         return btn;
     }
 
@@ -258,5 +348,46 @@ public sealed class LauncherForm : Form
     {
         var v = Assembly.GetExecutingAssembly().GetName().Version;
         return v is null ? "?" : $"{v.Major}.{v.Minor}.{v.Build}";
+    }
+
+    // Custom-drawn session button: dark surface with a colored accent strip on the left.
+    private sealed class SessionButton : Button
+    {
+        private readonly Color _accent;
+        private bool _hovered;
+
+        public SessionButton(string text, Color accent)
+        {
+            _accent = accent;
+            Text = text;
+            FlatStyle = FlatStyle.Flat;
+            BackColor = SurfaceColor;
+            ForeColor = TextPrimary;
+            UseVisualStyleBackColor = false;
+            TextAlign = ContentAlignment.MiddleLeft;
+            Font = new Font("Segoe UI", 9.5F);
+            FlatAppearance.BorderSize = 0;
+            FlatAppearance.MouseOverBackColor = SurfaceHover;
+            FlatAppearance.MouseDownBackColor = SurfaceColor;
+            DoubleBuffered = true;
+            MouseEnter += (_, _) => { _hovered = true; Invalidate(); };
+            MouseLeave += (_, _) => { _hovered = false; Invalidate(); };
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            g.Clear(_hovered ? SurfaceHover : SurfaceColor);
+
+            // Accent stripe on the left
+            using (var brush = new SolidBrush(_accent))
+                g.FillRectangle(brush, 0, 0, 4, Height);
+
+            // Text, with padding to clear the stripe
+            var textRect = new Rectangle(14, 0, Width - 18, Height);
+            TextRenderer.DrawText(g, Text, Font, textRect, ForeColor,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+        }
     }
 }

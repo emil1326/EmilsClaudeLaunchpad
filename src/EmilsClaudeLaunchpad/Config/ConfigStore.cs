@@ -55,7 +55,7 @@ public static class ConfigStore
             new SessionPreset
             {
                 Id = "example-single",
-                Title = "Example (resume + remote_control)",
+                Title = "Example project",
                 Kind = SessionKind.Single,
                 Tab = new TabSpec
                 {
@@ -63,13 +63,13 @@ public static class ConfigStore
                     TabColor = "#FF8800",
                     WorkingDir = @"C:\path\to\your\project",
                     ClaudeArgs = new[] { "--resume", "REPLACE-WITH-YOUR-SESSION-UUID" },
-                    InitialPrompt = "/remote_control",
+                    InitialPrompt = "/remote-control",
                 },
             },
             new SessionPreset
             {
                 Id = "example-group",
-                Title = "Example group (multi-tab)",
+                Title = "Example workspace",
                 Kind = SessionKind.Group,
                 Tabs = new[]
                 {
@@ -79,7 +79,7 @@ public static class ConfigStore
                         TabColor = "#FF8800",
                         WorkingDir = @"C:\path\to\your\backend",
                         ClaudeArgs = new[] { "--resume", "REPLACE-WITH-BACKEND-UUID" },
-                        InitialPrompt = "/remote_control",
+                        InitialPrompt = "/remote-control",
                     },
                     new TabSpec
                     {
@@ -87,7 +87,7 @@ public static class ConfigStore
                         TabColor = "#0088FF",
                         WorkingDir = @"C:\path\to\your\frontend",
                         ClaudeArgs = new[] { "--resume", "REPLACE-WITH-FRONTEND-UUID" },
-                        InitialPrompt = "/remote_control",
+                        InitialPrompt = "/remote-control",
                     },
                 },
             },

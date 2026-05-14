@@ -23,6 +23,17 @@ public sealed class TrayAppContext : ApplicationContext
         _launcher = new SessionLauncher(ShowBalloon);
         _updater = new UpdateManager(ShowBalloon);
 
+        // Pre-warm the form off-screen so the first show doesn't flash with default Windows colors
+        // before our dark theme is applied.
+        _form = new LauncherForm(_launcher, _updater, ShowBalloon)
+        {
+            Location = new Point(-32000, -32000),
+            Opacity = 0,
+        };
+        _form.Show();
+        _form.Hide();
+        _form.Opacity = 1;
+
         _ = _updater.CheckOnStartupAsync();
     }
 
