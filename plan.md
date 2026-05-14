@@ -375,6 +375,75 @@ Uses the auto-provisioned `GITHUB_TOKEN` (no manual secret setup). Public repo �
 13. **Auto-update end-to-end.** With v0.1.0 installed, bump csproj `Version` to `0.2.0`, push tag `v0.2.0`. After the release publishes, restart the local app. Confirm: balloon tip says update available, clicking it downloads a small delta (NOT a full 30 MB), app restarts at v0.2.0, autostart registry entry still works (still points at the `current` junction).
 14. **Uninstall.** Settings → Apps → Uninstall "Emil's Claude Launchpad". Confirm: install folder gone, autostart registry value gone, `%APPDATA%\EmilsClaudeLaunchpad\presets.json` preserved.
 
+## v0.1.1 — Chat editor UI
+
+### Goal
+
+Replace the "edit JSON in notepad" flow with a real UI editor that:
+- Lists all Claude Code chats discovered from `~\.claude\projects\<path>\<uuid>.jsonl`, sorted by last-modified desc, with preview of the first user message.
+- Lets the user click a chat → set its display props (title, color, working dir, initial prompt, shell, preCommands).
+- Lets the user create groups and add chats to them. **Same chat can be in multiple groups simultaneously.**
+- Groups are exactly what the main launcher form shows as clickable buttons.
+
+The "Edit" button in the launcher is replaced (right-click access to raw JSON is gone — config is fully UI-managed for v0.1.1).
+
+### Schema v2
+
+Drop the `Single|Group` distinction. Every preset becomes a "group" with N≥1 tabs. Same tab id can appear in multiple groups (multi-group membership). Auto-migrate v1 → v2 on load.
+
+```json
+{
+  "schemaVersion": 2,
+  "settings": { "defaultShell": "powershell", "autostart": false },
+  "tabs": [
+    {
+      "id": "tab-captures",
+      "sessionId": "ad7e3c05-0d6f-45f6-afc4-c5223ec25b8b",
+      "title": "Captures",
+      "tabColor": "#22AA22",
+      "workingDir": "C:\\Users\\emili\\Videos\\Captures",
+      "shell": null,
+      "preCommands": [],
+      "extraClaudeArgs": [],
+      "initialPrompt": "/remote-control"
+    }
+  ],
+  "groups": [
+    {
+      "id": "group-main",
+      "title": "Main work",
+      "color": "#FF8800",
+      "tabIds": ["tab-captures", "tab-other"]
+    }
+  ]
+}
+```
+
+`extraClaudeArgs` augments the auto-built `--resume <sessionId>`. `sessionId` is the canonical link to the Claude Code session UUID (the `.jsonl` filename). A group with one `tabId` behaves like the old "Single" preset; a group with N tabs is what was a "Group" before.
+
+### Phases
+
+1. **Schema v2 + migration.** New `TabPreset` (with id), `Group` (with id + tabIds), `PresetsConfigV2`. Migration on `ConfigStore.Load()`: detect `schemaVersion < 2` (or absence of `tabs`/`groups`), translate v1 sessions → v2 (Single → 1 tab + 1 group; Group → N tabs + 1 group). Update `WtCommandBuilder` to accept a `Group` + tab lookup. Update `SessionLauncher` + `LauncherForm` to use groups. Verify: launching a migrated v1 config produces identical wt invocations.
+2. **`ChatScanner`.** Discover `~\.claude\projects\*\*.jsonl` files. Parse first ~10 JSONL lines per file to extract `cwd` from the first `user` entry + first user-message text for preview. Return `IReadOnlyList<ChatRecord>` sorted by file mtime desc. Cache for the duration of the editor session.
+3. **`EditorForm`.** Modal/modeless dialog opened from the launcher's "Edit" button. Two-pane:
+   - **Left:** "Available chats" — `ListView` (Details mode) of `ChatRecord`s: working dir, last used, first-message preview, badge showing how many groups already include this chat. Sortable. Search/filter box.
+   - **Right:** "Groups" — tree-like view with one node per group, children = tabs in that group. Buttons: `New group`, `Delete group`, `Rename group`, `Set group color`.
+   - **Detail pane** (below or to the right): when a chat (left) is selected, show editable tab settings (title, color, workingDir, initialPrompt, shell, preCommands, extraClaudeArgs); when a group (right) is selected, show group settings. **"Add to group" button** appears when both a chat and a group are selected.
+   - **Save** button at the bottom writes the new `PresetsConfigV2` back to disk; **Cancel** discards changes.
+4. **Wire-up.** Replace the launcher's "Edit" button with `OnOpenEditor()` that constructs and shows the `EditorForm`. On editor save, the launcher reloads config + repopulates its group buttons. The right-click `MouseUp` flow stays the same.
+
+### Verification
+
+- v1 config (current presets.json) loads without errors, migrates silently to v2 in memory; on save, the v2 schema is written back. Manual diff of expected wt args before/after migration matches.
+- Editor: launching with no chats shows empty state. Adding/removing chats from groups updates correctly. Same chat added to two groups appears in both, and clicking either group launches it correctly. Closing the editor without save leaves the file untouched.
+- The "Test (Captures)" preset (currently in user's config) survives migration and still launches via `claude --resume ad7e3c05-... '/remote-control'`.
+
+### Open items for v0.1.1
+
+1. **Color picker UI** — color picker dialog (`ColorDialog`) or a preset palette? Default: `ColorDialog` with the current swatch shown next to a "Pick…" button.
+2. **JSONL parsing robustness** — assume Anthropic's JSONL schema is stable, but handle malformed/half-written files gracefully (return null `ChatRecord`, log to balloon tip silently).
+3. **Stale chat detection** — if a `tabId` in a group references a `sessionId` whose `.jsonl` is gone from disk, the group should warn at load time and offer to unlink. Skip in v0.1.1, address in v0.1.2.
+
 ## Out of scope for v1 (deliberate)
 
 - GUI editor for presets (v1 = edit JSON in default editor).

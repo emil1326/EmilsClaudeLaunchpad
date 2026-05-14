@@ -9,7 +9,7 @@
     <RootNamespace>EmilsClaudeLaunchpad</RootNamespace>
     <AssemblyName>EmilsClaudeLaunchpad</AssemblyName>
     <ApplicationIcon Condition="Exists('Resources\app.ico')">Resources\app.ico</ApplicationIcon>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
   </PropertyGroup>
 
   <!-- Publish-only properties: only kick in on `dotnet publish`, keeping `dotnet build` fast and warning-free.

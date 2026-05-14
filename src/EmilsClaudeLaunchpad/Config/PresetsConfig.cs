@@ -8,7 +8,10 @@ public sealed record AppSettings
 
 public sealed record PresetsConfig
 {
-    public int SchemaVersion { get; init; } = 1;
+    public int SchemaVersion { get; init; } = 2;
     public AppSettings Settings { get; init; } = new();
-    public IReadOnlyList<SessionPreset> Sessions { get; init; } = Array.Empty<SessionPreset>();
+    public IReadOnlyList<TabPreset> Tabs { get; init; } = Array.Empty<TabPreset>();
+    public IReadOnlyList<GroupPreset> Groups { get; init; } = Array.Empty<GroupPreset>();
+
+    public TabPreset? FindTab(string id) => Tabs.FirstOrDefault(t => t.Id == id);
 }

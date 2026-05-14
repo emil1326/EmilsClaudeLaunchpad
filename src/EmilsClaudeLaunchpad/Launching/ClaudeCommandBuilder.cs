@@ -4,7 +4,7 @@ namespace EmilsClaudeLaunchpad.Launching;
 
 public static class ClaudeCommandBuilder
 {
-    public static string BuildPwshPayload(TabSpec tab)
+    public static string BuildPwshPayload(TabPreset tab)
     {
         var parts = new List<string>();
 
@@ -12,8 +12,19 @@ public static class ClaudeCommandBuilder
             parts.Add(string.Join("; ", tab.PreCommands));
 
         var claudeParts = new List<string> { "claude" };
-        foreach (var arg in tab.ClaudeArgs)
+        var hasSessionId = !string.IsNullOrEmpty(tab.SessionId);
+        if (hasSessionId)
+        {
+            claudeParts.Add("--resume");
+            claudeParts.Add(MaybeQuote(tab.SessionId));
+        }
+        foreach (var arg in tab.ExtraClaudeArgs)
+        {
+            // --resume and --continue are mutually exclusive with --resume <SessionId>; drop them
+            // so the user doesn't accidentally pass both and have claude refuse to start.
+            if (hasSessionId && (arg == "--resume" || arg == "--continue")) continue;
             claudeParts.Add(MaybeQuote(arg));
+        }
         if (!string.IsNullOrEmpty(tab.InitialPrompt))
             claudeParts.Add(PwshSingleQuote(tab.InitialPrompt));
 
@@ -25,8 +36,8 @@ public static class ClaudeCommandBuilder
     internal static string MaybeQuote(string arg)
     {
         if (string.IsNullOrEmpty(arg)) return "''";
-        if (arg == "--%") return PwshSingleQuote(arg); // stop-parsing token — must not reach the parser raw
-        if (arg.StartsWith('@')) return PwshSingleQuote(arg); // splatting / array-literal trigger
+        if (arg == "--%") return PwshSingleQuote(arg);
+        if (arg.StartsWith('@')) return PwshSingleQuote(arg);
         if (NeedsQuoting(arg)) return PwshSingleQuote(arg);
         return arg;
     }

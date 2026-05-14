@@ -1,6 +1,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using EmilsClaudeLaunchpad.Config.Legacy;
 
 namespace EmilsClaudeLaunchpad.Config;
 
@@ -35,8 +36,23 @@ public static class ConfigStore
         }
 
         var json = File.ReadAllText(path);
-        var config = JsonSerializer.Deserialize<PresetsConfig>(json, JsonOptions);
-        return config ?? new PresetsConfig();
+
+        // Detect schema: v2 has a "tabs" + "groups" pair; v1 has "sessions".
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        var hasV2Shape = root.TryGetProperty("tabs", out _) && root.TryGetProperty("groups", out _);
+
+        if (hasV2Shape)
+        {
+            var v2 = JsonSerializer.Deserialize<PresetsConfig>(json, JsonOptions);
+            return v2 ?? new PresetsConfig();
+        }
+
+        // v1: parse + migrate.
+        var v1 = JsonSerializer.Deserialize<PresetsConfigV1>(json, JsonOptions);
+        var migrated = Migrate(v1 ?? new PresetsConfigV1());
+        Save(migrated); // persist the migrated form so we don't re-migrate every load
+        return migrated;
     }
 
     public static void Save(PresetsConfig config)
@@ -46,51 +62,136 @@ public static class ConfigStore
         File.WriteAllText(GetConfigPath(), json);
     }
 
-    private static PresetsConfig BuildSeed() => new()
+    private static PresetsConfig Migrate(PresetsConfigV1 v1)
     {
-        SchemaVersion = 1,
-        Settings = new AppSettings { DefaultShell = "powershell", Autostart = false },
-        Sessions = new[]
+        var tabs = new List<TabPreset>();
+        var groups = new List<GroupPreset>();
+        var sessionCounter = 1;
+
+        foreach (var session in v1.Sessions ?? Array.Empty<SessionPresetV1>())
         {
-            new SessionPreset
+            var sessionTabs = session.Kind switch
             {
-                Id = "example-single",
-                Title = "Example project",
-                Kind = SessionKind.Single,
-                Tab = new TabSpec
+                SessionKindV1.Single => session.Tab is null ? Array.Empty<TabSpecV1>() : new[] { session.Tab },
+                SessionKindV1.Group => (session.Tabs ?? Array.Empty<TabSpecV1>()).ToArray(),
+                _ => Array.Empty<TabSpecV1>(),
+            };
+
+            var tabIds = new List<string>();
+            string? groupColor = null;
+
+            foreach (var v1Tab in sessionTabs)
+            {
+                var newTab = MigrateTab(v1Tab, session.Id ?? $"session-{sessionCounter}", tabs.Count);
+                tabs.Add(newTab);
+                tabIds.Add(newTab.Id);
+                groupColor ??= newTab.TabColor;
+            }
+
+            groups.Add(new GroupPreset
+            {
+                Id = !string.IsNullOrEmpty(session.Id) ? session.Id : $"group-{sessionCounter}",
+                Title = session.Title ?? $"Group {sessionCounter}",
+                Color = groupColor,
+                TabIds = tabIds,
+                Window = session.Window,
+            });
+            sessionCounter++;
+        }
+
+        return new PresetsConfig
+        {
+            SchemaVersion = 2,
+            Settings = v1.Settings,
+            Tabs = tabs,
+            Groups = groups,
+        };
+    }
+
+    private static TabPreset MigrateTab(TabSpecV1 v1Tab, string sessionId, int index)
+    {
+        // Extract --resume <uuid> from claudeArgs; remaining args go into extraClaudeArgs.
+        var args = (v1Tab.ClaudeArgs ?? Array.Empty<string>()).ToList();
+        var resumedSessionId = string.Empty;
+        var extraArgs = new List<string>();
+        for (int i = 0; i < args.Count; i++)
+        {
+            if (args[i] == "--resume" && i + 1 < args.Count)
+            {
+                resumedSessionId = args[i + 1];
+                i++;
+                continue;
+            }
+            extraArgs.Add(args[i]);
+        }
+
+        return new TabPreset
+        {
+            Id = $"tab-{sessionId}-{index}",
+            SessionId = resumedSessionId,
+            Title = string.IsNullOrEmpty(v1Tab.Title) ? "Untitled" : v1Tab.Title,
+            WorkingDir = v1Tab.WorkingDir ?? string.Empty,
+            TabColor = v1Tab.TabColor,
+            WtProfile = v1Tab.WtProfile,
+            Shell = v1Tab.Shell,
+            PreCommands = v1Tab.PreCommands ?? Array.Empty<string>(),
+            ExtraClaudeArgs = extraArgs,
+            InitialPrompt = v1Tab.InitialPrompt,
+        };
+    }
+
+    private static PresetsConfig BuildSeed()
+    {
+        var captureTab = new TabPreset
+        {
+            Id = "tab-example",
+            SessionId = "REPLACE-WITH-YOUR-SESSION-UUID",
+            Title = "Example",
+            WorkingDir = @"C:\path\to\your\project",
+            TabColor = "#FF8800",
+            InitialPrompt = "/remote-control",
+        };
+        var workspaceBackend = new TabPreset
+        {
+            Id = "tab-backend",
+            SessionId = "REPLACE-WITH-BACKEND-UUID",
+            Title = "Backend",
+            WorkingDir = @"C:\path\to\your\backend",
+            TabColor = "#FF8800",
+            InitialPrompt = "/remote-control",
+        };
+        var workspaceFrontend = new TabPreset
+        {
+            Id = "tab-frontend",
+            SessionId = "REPLACE-WITH-FRONTEND-UUID",
+            Title = "Frontend",
+            WorkingDir = @"C:\path\to\your\frontend",
+            TabColor = "#0088FF",
+            InitialPrompt = "/remote-control",
+        };
+
+        return new PresetsConfig
+        {
+            SchemaVersion = 2,
+            Settings = new AppSettings { DefaultShell = "powershell", Autostart = false },
+            Tabs = new[] { captureTab, workspaceBackend, workspaceFrontend },
+            Groups = new[]
+            {
+                new GroupPreset
                 {
-                    Title = "Example",
-                    TabColor = "#FF8800",
-                    WorkingDir = @"C:\path\to\your\project",
-                    ClaudeArgs = new[] { "--resume", "REPLACE-WITH-YOUR-SESSION-UUID" },
-                    InitialPrompt = "/remote-control",
+                    Id = "group-example",
+                    Title = "Example project",
+                    Color = "#FF8800",
+                    TabIds = new[] { captureTab.Id },
+                },
+                new GroupPreset
+                {
+                    Id = "group-workspace",
+                    Title = "Example workspace",
+                    Color = "#FF8800",
+                    TabIds = new[] { workspaceBackend.Id, workspaceFrontend.Id },
                 },
             },
-            new SessionPreset
-            {
-                Id = "example-group",
-                Title = "Example workspace",
-                Kind = SessionKind.Group,
-                Tabs = new[]
-                {
-                    new TabSpec
-                    {
-                        Title = "Backend",
-                        TabColor = "#FF8800",
-                        WorkingDir = @"C:\path\to\your\backend",
-                        ClaudeArgs = new[] { "--resume", "REPLACE-WITH-BACKEND-UUID" },
-                        InitialPrompt = "/remote-control",
-                    },
-                    new TabSpec
-                    {
-                        Title = "Frontend",
-                        TabColor = "#0088FF",
-                        WorkingDir = @"C:\path\to\your\frontend",
-                        ClaudeArgs = new[] { "--resume", "REPLACE-WITH-FRONTEND-UUID" },
-                        InitialPrompt = "/remote-control",
-                    },
-                },
-            },
-        },
-    };
+        };
+    }
 }

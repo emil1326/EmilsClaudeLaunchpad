@@ -7,16 +7,21 @@ public static class WtCommandBuilder
 {
     private static readonly Regex HexColorRegex = new("^#[0-9A-Fa-f]{6}$", RegexOptions.Compiled);
 
-    public static IReadOnlyList<string> BuildArgumentList(SessionPreset preset, string defaultShell)
+    public static IReadOnlyList<string> BuildArgumentList(GroupPreset group, IReadOnlyDictionary<string, TabPreset> tabsById, string defaultShell)
     {
         var args = new List<string>();
-        var tabs = preset.EnumerateTabs().ToList();
+        var tabs = group.TabIds
+            .Select(id => tabsById.TryGetValue(id, out var t) ? t : null)
+            .Where(t => t is not null)
+            .Cast<TabPreset>()
+            .ToList();
+
         if (tabs.Count == 0) return args;
 
-        if (!string.IsNullOrEmpty(preset.Window))
+        if (!string.IsNullOrEmpty(group.Window))
         {
             args.Add("--window");
-            args.Add(preset.Window);
+            args.Add(group.Window);
         }
 
         for (int i = 0; i < tabs.Count; i++)
@@ -28,7 +33,7 @@ public static class WtCommandBuilder
         return args;
     }
 
-    private static void AppendTabBlock(List<string> args, TabSpec tab, string defaultShell)
+    private static void AppendTabBlock(List<string> args, TabPreset tab, string defaultShell)
     {
         args.Add("new-tab");
 

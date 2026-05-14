@@ -13,12 +13,17 @@ public sealed class SessionLauncher
         _notifyError = notifyError;
     }
 
-    public bool Launch(SessionPreset preset, string defaultShell)
+    public bool Launch(GroupPreset group, IReadOnlyDictionary<string, TabPreset> tabsById, string defaultShell)
     {
-        var args = WtCommandBuilder.BuildArgumentList(preset, defaultShell);
+        var missingIds = group.TabIds.Where(id => !tabsById.ContainsKey(id)).ToList();
+        if (missingIds.Count > 0)
+            _notifyError("Missing tabs",
+                $"Group '{group.Title}' references unknown tab id(s): {string.Join(", ", missingIds)}. Open the editor to clean it up.");
+
+        var args = WtCommandBuilder.BuildArgumentList(group, tabsById, defaultShell);
         if (args.Count == 0)
         {
-            _notifyError("Launch skipped", $"Session '{preset.Title}' has no tabs configured.");
+            _notifyError("Launch skipped", $"Group '{group.Title}' has no usable tabs.");
             return false;
         }
 
@@ -41,16 +46,16 @@ public sealed class SessionLauncher
         }
         catch (Exception ex)
         {
-            _notifyError($"Failed to launch '{preset.Title}'", ex.Message);
+            _notifyError($"Failed to launch '{group.Title}'", ex.Message);
             return false;
         }
     }
 
-    public async Task LaunchAllAsync(IEnumerable<SessionPreset> presets, string defaultShell)
+    public async Task LaunchAllAsync(IEnumerable<GroupPreset> groups, IReadOnlyDictionary<string, TabPreset> tabsById, string defaultShell)
     {
-        foreach (var p in presets)
+        foreach (var g in groups)
         {
-            Launch(p, defaultShell);
+            Launch(g, tabsById, defaultShell);
             await Task.Delay(80);
         }
     }

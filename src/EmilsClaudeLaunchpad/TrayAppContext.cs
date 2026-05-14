@@ -8,10 +8,12 @@ public sealed class TrayAppContext : ApplicationContext
     private readonly NotifyIcon _icon;
     private readonly SessionLauncher _launcher;
     private readonly UpdateManager _updater;
+    private readonly SynchronizationContext _uiContext;
     private LauncherForm? _form;
 
     public TrayAppContext()
     {
+        _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _icon = new NotifyIcon
         {
             Icon = SystemIcons.Application,
@@ -58,9 +60,12 @@ public sealed class TrayAppContext : ApplicationContext
 
     private void ShowBalloon(string title, string text)
     {
-        _icon.BalloonTipTitle = title;
-        _icon.BalloonTipText = text;
-        _icon.ShowBalloonTip(3000);
+        _uiContext.Post(_ =>
+        {
+            _icon.BalloonTipTitle = title;
+            _icon.BalloonTipText = text;
+            _icon.ShowBalloonTip(3000);
+        }, null);
     }
 
     protected override void Dispose(bool disposing)

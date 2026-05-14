@@ -48,6 +48,7 @@ public sealed class LauncherForm : Form
         KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) Hide(); };
 
         BuildLayout();
+        ReloadConfig();
         Deactivate += (_, _) => Hide();
     }
 
@@ -220,11 +221,11 @@ public sealed class LauncherForm : Form
         _sessionsPanel.SuspendLayout();
         _sessionsPanel.Controls.Clear();
 
-        if (_config.Sessions.Count == 0)
+        if (_config.Groups.Count == 0)
         {
             var empty = new Label
             {
-                Text = "No sessions configured.\nClick 'Edit' to add some.",
+                Text = "No groups configured.\nClick 'Edit' to add some.",
                 ForeColor = TextMuted,
                 AutoSize = false,
                 Size = new Size(_sessionsPanel.ClientSize.Width - 4, 80),
@@ -234,14 +235,14 @@ public sealed class LauncherForm : Form
         }
         else
         {
-            foreach (var session in _config.Sessions)
+            foreach (var group in _config.Groups)
             {
-                var accent = PickSessionColor(session);
-                var btn = new SessionButton(session.Title, accent);
+                var accent = PickGroupColor(group);
+                var btn = new SessionButton(group.Title, accent);
                 btn.Width = _sessionsPanel.ClientSize.Width - 4;
                 btn.Height = 36;
                 btn.Margin = new Padding(0, 0, 0, 6);
-                btn.Click += (_, _) => OnLaunchSession(session);
+                btn.Click += (_, _) => OnLaunchGroup(group);
                 _sessionsPanel.Controls.Add(btn);
             }
         }
@@ -249,29 +250,28 @@ public sealed class LauncherForm : Form
         _sessionsPanel.ResumeLayout();
     }
 
-    private void OnLaunchSession(SessionPreset session)
+    private IReadOnlyDictionary<string, TabPreset> BuildTabsById() =>
+        _config.Tabs.ToDictionary(t => t.Id, t => t);
+
+    private void OnLaunchGroup(GroupPreset group)
     {
-        var ok = _launcher.Launch(session, _config.Settings.DefaultShell);
+        var ok = _launcher.Launch(group, BuildTabsById(), _config.Settings.DefaultShell);
         if (ok) Hide();
     }
 
     private async Task OnLaunchAllAsync()
     {
-        await _launcher.LaunchAllAsync(_config.Sessions, _config.Settings.DefaultShell);
+        await _launcher.LaunchAllAsync(_config.Groups, BuildTabsById(), _config.Settings.DefaultShell);
         Hide();
     }
 
     private void OnEditConfig()
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo(ConfigStore.GetConfigPath()) { UseShellExecute = true });
-            Hide();
-        }
-        catch (Exception ex)
-        {
-            _notify("Couldn't open config", ex.Message);
-        }
+        Hide();
+        using var editor = new EditorForm(_config);
+        editor.ShowDialog();
+        if (editor.SavedChanges) ReloadConfig();
+        // Launcher stays hidden after editor closes — user can click the tray again to reopen.
     }
 
     private void OnAutostartToggled(object? sender, EventArgs e)
@@ -287,10 +287,13 @@ public sealed class LauncherForm : Form
         }
     }
 
-    private static Color PickSessionColor(SessionPreset session)
+    private Color PickGroupColor(GroupPreset group)
     {
-        var firstColor = session.EnumerateTabs().FirstOrDefault()?.TabColor;
-        return ParseHexColor(firstColor) ?? Color.FromArgb(120, 120, 130);
+        var explicitColor = ParseHexColor(group.Color);
+        if (explicitColor.HasValue) return explicitColor.Value;
+        var firstTabId = group.TabIds.FirstOrDefault();
+        var firstTab = firstTabId is null ? null : _config.FindTab(firstTabId);
+        return ParseHexColor(firstTab?.TabColor) ?? Color.FromArgb(120, 120, 130);
     }
 
     private static Color? ParseHexColor(string? hex)
