@@ -46,10 +46,44 @@ public sealed class EditorForm : Form
     private TextBox _tabTitleBox = null!;
     private TextBox _tabColorBox = null!;
     private TextBox _cwdBox = null!;
-    private TextBox _promptBox = null!;
-    private TextBox _extraArgsBox = null!;
-    private TextBox _shellBox = null!;
+    private ComboBox _promptBox = null!;
+    private ComboBox _extraArgsBox = null!;
+    private ComboBox _shellBox = null!;
     private Button _tabApplyBtn = null!;
+
+    // Popular slash commands offered in the Prompt dropdown. Empty string = no startup prompt.
+    // User can also type freely (DropDownStyle.DropDown allows both pick + type).
+    private static readonly string[] PromptOptions =
+    {
+        "",
+        "/remote-control",
+        "/compact",
+        "/clear",
+        "/cost",
+        "/status",
+        "/help",
+        "/memorize",
+        "/model",
+    };
+
+    private static readonly string[] ShellOptions =
+    {
+        "",            // blank = use default from AppSettings
+        "powershell",  // Windows PowerShell 5.1
+        "pwsh",        // PowerShell 7+ (requires install)
+        "cmd",
+        "wsl",
+    };
+
+    private static readonly string[] ExtraArgsOptions =
+    {
+        "",
+        "--debug",
+        "--verbose",
+        "--print",
+        "--dangerously-skip-permissions",
+        "--no-cleanup-period-days",
+    };
 
     // Group-card fields
     private TextBox _groupTitleBox = null!;
@@ -404,10 +438,9 @@ public sealed class EditorForm : Form
         var colorRow = BuildColorRow(out _tabColorBox);
         AddField(grid, "Color", colorRow, 0, columnStart: 2);
         AddField(grid, "Cwd", _cwdBox = MakeTextBox(), 1, spanCols: 3);
-        AddField(grid, "Prompt", _promptBox = MakeTextBox(), 2);
-        AddField(grid, "Extra args", _extraArgsBox = MakeTextBox(), 2, columnStart: 2);
-        AddField(grid, "Shell", _shellBox = MakeTextBox(), 3);
-        _shellBox.PlaceholderText = "(blank = use default)";
+        AddField(grid, "Prompt", _promptBox = MakeComboBox(PromptOptions), 2);
+        AddField(grid, "Extra args", _extraArgsBox = MakeComboBox(ExtraArgsOptions), 2, columnStart: 2);
+        AddField(grid, "Shell", _shellBox = MakeComboBox(ShellOptions), 3);
 
         var applyRow = new Panel { Dock = DockStyle.Top, Height = 38, BackColor = Surface, Margin = new Padding(0, 8, 0, 0) };
         _tabApplyBtn = MakePrimaryButton("Apply changes");
@@ -937,6 +970,23 @@ public sealed class EditorForm : Form
         BorderStyle = BorderStyle.FixedSingle,
         Font = new Font("Segoe UI", 9F),
     };
+
+    // Editable dropdown — user can pick from the list OR type freely. Empty first item =
+    // explicit "blank" choice (no startup prompt / use default shell / no extra args).
+    private static ComboBox MakeComboBox(string[] items)
+    {
+        var cb = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.FromArgb(20, 20, 24),
+            ForeColor = TextPrimary,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 9F),
+            DropDownStyle = ComboBoxStyle.DropDown,
+        };
+        cb.Items.AddRange(items);
+        return cb;
+    }
 
     private static Button MakePrimaryButton(string text)
     {
