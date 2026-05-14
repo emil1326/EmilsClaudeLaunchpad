@@ -6,8 +6,7 @@ namespace EmilsClaudeLaunchpad.Update;
 
 public sealed class UpdateManager
 {
-    // TODO: replace <REPLACE-WITH-GITHUB-USER> once the GitHub repo exists.
-    public const string RepoUrl = "https://github.com/REPLACE-WITH-GITHUB-USER/EmilsClaudeLaunchpad";
+    public const string RepoUrl = "https://github.com/emil1326/EmilsClaudeLaunchpad";
 
     private readonly Action<string, string> _notify;
     private readonly VpkUpdateManager? _vmgr;
