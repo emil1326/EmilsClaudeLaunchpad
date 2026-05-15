@@ -11,7 +11,11 @@ internal static class Program
         VelopackApp.Build().SetArgs(args).Run();
 
         if (!SingleInstance.TryAcquire("EmilsClaudeLaunchpad"))
+        {
+            // A second launch — wake the already-running instance instead of dying silently.
+            IpcServer.TryWakeRunningInstance();
             return;
+        }
 
         ApplicationConfiguration.Initialize();
         Application.Run(new TrayAppContext());

@@ -14,4 +14,12 @@ public static class SingleInstance
         }
         return createdNew;
     }
+
+    public static void Release()
+    {
+        if (_mutex is null) return;
+        try { _mutex.ReleaseMutex(); } catch { /* not owned, nothing to release */ }
+        _mutex.Dispose();
+        _mutex = null;
+    }
 }
