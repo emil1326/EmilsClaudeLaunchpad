@@ -3,30 +3,23 @@ using System.Reflection;
 using EmilsClaudeLaunchpad.Config;
 using EmilsClaudeLaunchpad.Launching;
 using EmilsClaudeLaunchpad.Startup;
+using EmilsClaudeLaunchpad.Ui;
 using EmilsClaudeLaunchpad.Update;
+using static EmilsClaudeLaunchpad.Ui.Theme;
 
 namespace EmilsClaudeLaunchpad;
 
 public sealed class LauncherForm : Form
 {
-    private static readonly Color BgColor = Color.FromArgb(24, 24, 28);
-    private static readonly Color SurfaceColor = Color.FromArgb(36, 36, 42);
-    private static readonly Color SurfaceHover = Color.FromArgb(48, 48, 56);
-    private static readonly Color BorderColor = Color.FromArgb(52, 52, 60);
-    private static readonly Color TextPrimary = Color.FromArgb(232, 232, 235);
-    private static readonly Color TextMuted = Color.FromArgb(140, 140, 150);
-    private static readonly Color AccentBlue = Color.FromArgb(72, 124, 200);
-    private static readonly Color AccentBlueHover = Color.FromArgb(92, 144, 220);
-
     private readonly SessionLauncher _launcher;
-    private readonly UpdateManager _updater;
+    private readonly AppUpdateManager _updater;
     private readonly Action<string, string> _notify;
 
     private FlowLayoutPanel _sessionsPanel = null!;
     private CheckBox _autostartCheckbox = null!;
     private PresetsConfig _config = new();
 
-    public LauncherForm(SessionLauncher launcher, UpdateManager updater, Action<string, string> notify)
+    public LauncherForm(SessionLauncher launcher, AppUpdateManager updater, Action<string, string> notify)
     {
         _launcher = launcher;
         _updater = updater;
@@ -38,7 +31,7 @@ public sealed class LauncherForm : Form
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
         ClientSize = new Size(320, 440);
-        BackColor = BgColor;
+        BackColor = Bg;
         ForeColor = TextPrimary;
         Font = new Font("Segoe UI", 9F);
         Padding = new Padding(10);
@@ -54,8 +47,8 @@ public sealed class LauncherForm : Form
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.Clear(BgColor);
-        using var borderPen = new Pen(BorderColor, 1);
+        e.Graphics.Clear(Bg);
+        using var borderPen = new Pen(Border, 1);
         e.Graphics.DrawRectangle(borderPen, 0, 0, Width - 1, Height - 1);
     }
 
@@ -65,7 +58,7 @@ public sealed class LauncherForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            BackColor = BgColor,
+            BackColor = Bg,
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
@@ -73,14 +66,14 @@ public sealed class LauncherForm : Form
         {
             Dock = DockStyle.Top,
             Height = 28,
-            BackColor = BgColor,
+            BackColor = Bg,
             Margin = new Padding(0, 0, 0, 8),
         };
         var titleLabel = new Label
         {
             Text = "Emil's Claude Launchpad",
             ForeColor = TextPrimary,
-            BackColor = BgColor,
+            BackColor = Bg,
             Font = new Font("Segoe UI", 10F, FontStyle.Bold),
             AutoSize = false,
             Dock = DockStyle.Fill,
@@ -91,7 +84,7 @@ public sealed class LauncherForm : Form
         root.Controls.Add(headerPanel, 0, 0);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
 
-        var headerDivider = new Panel { Height = 1, Dock = DockStyle.Top, BackColor = BorderColor, Margin = new Padding(0, 0, 0, 8) };
+        var headerDivider = new Panel { Height = 1, Dock = DockStyle.Top, BackColor = Border, Margin = new Padding(0, 0, 0, 8) };
         root.Controls.Add(headerDivider, 0, 1);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 9));
 
@@ -101,13 +94,13 @@ public sealed class LauncherForm : Form
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
             AutoScroll = true,
-            BackColor = BgColor,
+            BackColor = Bg,
             Margin = new Padding(0, 0, 0, 8),
         };
         root.Controls.Add(_sessionsPanel, 0, 2);
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var divider1 = new Panel { Height = 1, Dock = DockStyle.Top, BackColor = BorderColor, Margin = new Padding(0, 4, 0, 8) };
+        var divider1 = new Panel { Height = 1, Dock = DockStyle.Top, BackColor = Border, Margin = new Padding(0, 4, 0, 8) };
         root.Controls.Add(divider1, 0, 3);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 13));
 
@@ -125,7 +118,7 @@ public sealed class LauncherForm : Form
             ColumnCount = 3,
             RowCount = 1,
             Height = 30,
-            BackColor = BgColor,
+            BackColor = Bg,
             Margin = new Padding(0, 0, 0, 8),
         };
         actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
@@ -152,7 +145,7 @@ public sealed class LauncherForm : Form
             Text = "Autostart at login",
             Dock = DockStyle.Top,
             ForeColor = TextPrimary,
-            BackColor = BgColor,
+            BackColor = Bg,
             Margin = new Padding(2, 0, 0, 8),
             FlatStyle = FlatStyle.Flat,
             AutoSize = true,
@@ -167,7 +160,7 @@ public sealed class LauncherForm : Form
             ColumnCount = 2,
             RowCount = 1,
             Height = 28,
-            BackColor = BgColor,
+            BackColor = Bg,
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
@@ -289,62 +282,11 @@ public sealed class LauncherForm : Form
 
     private Color PickGroupColor(GroupPreset group)
     {
-        var explicitColor = ParseHexColor(group.Color);
+        var explicitColor = TryParseHex(group.Color);
         if (explicitColor.HasValue) return explicitColor.Value;
         var firstTabId = group.TabIds.FirstOrDefault();
         var firstTab = firstTabId is null ? null : _config.FindTab(firstTabId);
-        return ParseHexColor(firstTab?.TabColor) ?? Color.FromArgb(120, 120, 130);
-    }
-
-    private static Color? ParseHexColor(string? hex)
-    {
-        if (string.IsNullOrEmpty(hex)) return null;
-        if (hex.StartsWith('#')) hex = hex[1..];
-        if (hex.Length != 6) return null;
-        try
-        {
-            return Color.FromArgb(
-                Convert.ToInt32(hex[..2], 16),
-                Convert.ToInt32(hex.Substring(2, 2), 16),
-                Convert.ToInt32(hex.Substring(4, 2), 16));
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static Button MakePrimaryButton(string text)
-    {
-        var btn = new Button
-        {
-            Text = text,
-            BackColor = AccentBlue,
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
-            UseVisualStyleBackColor = false,
-        };
-        btn.FlatAppearance.BorderSize = 0;
-        btn.FlatAppearance.MouseOverBackColor = AccentBlueHover;
-        btn.FlatAppearance.MouseDownBackColor = AccentBlue;
-        return btn;
-    }
-
-    private static Button MakeSecondaryButton(string text)
-    {
-        var btn = new Button
-        {
-            Text = text,
-            BackColor = SurfaceColor,
-            ForeColor = TextPrimary,
-            FlatStyle = FlatStyle.Flat,
-            UseVisualStyleBackColor = false,
-        };
-        btn.FlatAppearance.BorderSize = 0;
-        btn.FlatAppearance.MouseOverBackColor = SurfaceHover;
-        btn.FlatAppearance.MouseDownBackColor = SurfaceColor;
-        return btn;
+        return TryParseHex(firstTab?.TabColor) ?? NeutralAccent;
     }
 
     private static string GetAssemblyVersion()
@@ -364,14 +306,14 @@ public sealed class LauncherForm : Form
             _accent = accent;
             Text = text;
             FlatStyle = FlatStyle.Flat;
-            BackColor = SurfaceColor;
+            BackColor = Surface;
             ForeColor = TextPrimary;
             UseVisualStyleBackColor = false;
             TextAlign = ContentAlignment.MiddleLeft;
             Font = new Font("Segoe UI", 9.5F);
             FlatAppearance.BorderSize = 0;
             FlatAppearance.MouseOverBackColor = SurfaceHover;
-            FlatAppearance.MouseDownBackColor = SurfaceColor;
+            FlatAppearance.MouseDownBackColor = Surface;
             DoubleBuffered = true;
             MouseEnter += (_, _) => { _hovered = true; Invalidate(); };
             MouseLeave += (_, _) => { _hovered = false; Invalidate(); };
@@ -381,7 +323,7 @@ public sealed class LauncherForm : Form
         {
             var g = e.Graphics;
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            g.Clear(_hovered ? SurfaceHover : SurfaceColor);
+            g.Clear(_hovered ? SurfaceHover : Surface);
 
             // Accent stripe on the left
             using (var brush = new SolidBrush(_accent))

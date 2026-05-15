@@ -7,7 +7,7 @@ public sealed class TrayAppContext : ApplicationContext
 {
     private readonly NotifyIcon _icon;
     private readonly SessionLauncher _launcher;
-    private readonly UpdateManager _updater;
+    private readonly AppUpdateManager _updater;
     private readonly SynchronizationContext _uiContext;
     private LauncherForm? _form;
 
@@ -23,7 +23,7 @@ public sealed class TrayAppContext : ApplicationContext
         _icon.MouseUp += OnTrayMouseUp;
 
         _launcher = new SessionLauncher(ShowBalloon);
-        _updater = new UpdateManager(ShowBalloon);
+        _updater = new AppUpdateManager(ShowBalloon);
 
         // Pre-warm the form off-screen so the first show doesn't flash with default Windows colors
         // before our dark theme is applied.

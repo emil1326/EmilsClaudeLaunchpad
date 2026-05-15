@@ -8,13 +8,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>EmilsClaudeLaunchpad</RootNamespace>
     <AssemblyName>EmilsClaudeLaunchpad</AssemblyName>
-    <ApplicationIcon Condition="Exists('Resources\app.ico')">Resources\app.ico</ApplicationIcon>
     <Version>0.1.1</Version>
   </PropertyGroup>
 
   <!-- Publish-only properties: only kick in on `dotnet publish`, keeping `dotnet build` fast and warning-free.
        Trimming is intentionally OFF — WinForms is unsupported with PublishTrimmed (NETSDK1175). Trades binary
-       size (~60-80 MB instead of ~30-40 MB) for reliability. See plan.md Open TODO #6. -->
+       size (~60-80 MB instead of ~30-40 MB) for reliability. See docs/plan.md Open TODO #6. -->
   <PropertyGroup Condition="'$(_IsPublishing)' == 'true' or '$(PublishingForVelopack)' == 'true'">
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
@@ -26,10 +25,6 @@
 
   <ItemGroup>
     <PackageReference Include="Velopack" Version="0.0.*" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Resources\tray.ico" CopyToOutputDirectory="PreserveNewest" Condition="Exists('Resources\tray.ico')" />
   </ItemGroup>
 
 </Project>

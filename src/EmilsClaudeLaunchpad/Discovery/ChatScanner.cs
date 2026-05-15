@@ -8,7 +8,6 @@ public sealed record ChatRecord
     public required string WorkingDir { get; init; }     // cwd extracted from first user entry
     public required string Preview { get; init; }        // truncated first user message text
     public required DateTime LastModified { get; init; } // file modification time
-    public required string ProjectFolder { get; init; }  // raw folder name under ~/.claude/projects/
 
     public string ShortId => SessionId.Length >= 8 ? SessionId[..8] : SessionId;
 }
@@ -64,7 +63,6 @@ public static class ChatScanner
                 WorkingDir = cwd,
                 Preview = Truncate(preview ?? "(no preview)", PreviewMaxLength),
                 LastModified = mtime,
-                ProjectFolder = projectFolder,
             };
         }
         catch

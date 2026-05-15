@@ -3,12 +3,14 @@ namespace EmilsClaudeLaunchpad.Config;
 public sealed record AppSettings
 {
     public string DefaultShell { get; init; } = "powershell";
-    public bool Autostart { get; init; } = false;
 }
 
 public sealed record PresetsConfig
 {
-    public int SchemaVersion { get; init; } = 2;
+    // Bumped whenever the on-disk shape changes. ConfigStore reads this to decide whether to migrate.
+    public const int CurrentSchemaVersion = 2;
+
+    public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public AppSettings Settings { get; init; } = new();
     public IReadOnlyList<TabPreset> Tabs { get; init; } = Array.Empty<TabPreset>();
     public IReadOnlyList<GroupPreset> Groups { get; init; } = Array.Empty<GroupPreset>();

@@ -1,25 +1,12 @@
 using System.Runtime.InteropServices;
 using EmilsClaudeLaunchpad.Config;
 using EmilsClaudeLaunchpad.Discovery;
+using static EmilsClaudeLaunchpad.Ui.Theme;
 
 namespace EmilsClaudeLaunchpad;
 
 public sealed class EditorForm : Form
 {
-    private static readonly Color BgColor = Color.FromArgb(24, 24, 28);
-    private static readonly Color Surface = Color.FromArgb(40, 40, 46);
-    private static readonly Color SurfaceHover = Color.FromArgb(52, 52, 60);
-    private static readonly Color SurfaceSelected = Color.FromArgb(58, 86, 140);
-    private static readonly Color Border = Color.FromArgb(64, 64, 72);
-    private static readonly Color TextPrimary = Color.FromArgb(232, 232, 235);
-    private static readonly Color TextMuted = Color.FromArgb(140, 140, 150);
-    private static readonly Color TextDim = Color.FromArgb(95, 95, 105);
-    private static readonly Color AccentBlue = Color.FromArgb(72, 124, 200);
-    private static readonly Color AccentBlueHover = Color.FromArgb(92, 144, 220);
-    private static readonly Color AccentRed = Color.FromArgb(180, 70, 70);
-    private static readonly Color StatusInfo = Color.FromArgb(160, 200, 240);
-    private static readonly Color StatusError = Color.FromArgb(240, 130, 130);
-
     private readonly List<TabPreset> _tabs;
     private readonly List<GroupPreset> _groups;
     private readonly AppSettings _settings;
@@ -114,7 +101,7 @@ public sealed class EditorForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(1000, 720);
         MinimumSize = new Size(820, 600);
-        BackColor = BgColor;
+        BackColor = Bg;
         ForeColor = TextPrimary;
         Font = new Font("Segoe UI", 9F);
         DoubleBuffered = true;
@@ -146,7 +133,7 @@ public sealed class EditorForm : Form
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.Clear(BgColor);
+        e.Graphics.Clear(Bg);
         using var pen = new Pen(Border, 1);
         e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
 
@@ -169,7 +156,7 @@ public sealed class EditorForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            BackColor = BgColor,
+            BackColor = Bg,
             Padding = new Padding(14, 12, 14, 14),
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -189,7 +176,7 @@ public sealed class EditorForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 1,
-            BackColor = BgColor,
+            BackColor = Bg,
         };
         twoCol.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         twoCol.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
@@ -213,7 +200,7 @@ public sealed class EditorForm : Form
             ColumnCount = 3,
             RowCount = 1,
             Height = 42,
-            BackColor = BgColor,
+            BackColor = Bg,
             Margin = new Padding(0, 12, 0, 0),
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -224,7 +211,7 @@ public sealed class EditorForm : Form
         {
             Text = string.Empty,
             ForeColor = StatusInfo,
-            BackColor = BgColor,
+            BackColor = Bg,
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleLeft,
             Font = new Font("Segoe UI", 9F),
@@ -232,7 +219,7 @@ public sealed class EditorForm : Form
         };
         footer.Controls.Add(_statusLabel, 0, 0);
 
-        var cancelBtn = MakeSecondaryButton("Cancel");
+        var cancelBtn = MakeSecondaryButton("Cancel", bordered: true);
         cancelBtn.Dock = DockStyle.Fill;
         cancelBtn.Margin = new Padding(0, 0, 8, 0);
         cancelBtn.Click += (_, _) => Close();
@@ -252,7 +239,7 @@ public sealed class EditorForm : Form
 
     private Panel BuildHeader()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 36, BackColor = BgColor, Cursor = Cursors.SizeAll };
+        var header = new Panel { Dock = DockStyle.Top, Height = 36, BackColor = Bg, Cursor = Cursors.SizeAll };
 
         var titleLabel = new Label
         {
@@ -286,7 +273,7 @@ public sealed class EditorForm : Form
 
     private Panel BuildChatsPane()
     {
-        var pane = new Panel { Dock = DockStyle.Fill, BackColor = BgColor, Padding = new Padding(0, 0, 8, 0) };
+        var pane = new Panel { Dock = DockStyle.Fill, BackColor = Bg, Padding = new Padding(0, 0, 8, 0) };
 
         var headerRow = new TableLayoutPanel
         {
@@ -294,7 +281,7 @@ public sealed class EditorForm : Form
             ColumnCount = 2,
             RowCount = 1,
             Height = 32,
-            BackColor = BgColor,
+            BackColor = Bg,
         };
         headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
@@ -306,7 +293,7 @@ public sealed class EditorForm : Form
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleLeft,
         };
-        var refreshBtn = MakeSecondaryButton("Refresh");
+        var refreshBtn = MakeSecondaryButton("Refresh", bordered: true);
         refreshBtn.Dock = DockStyle.Fill;
         refreshBtn.Click += (_, _) => { RefreshChats(); SetStatus("Chats refreshed.", false); };
         headerRow.Controls.Add(lbl, 0, 0);
@@ -318,11 +305,11 @@ public sealed class EditorForm : Form
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
             AutoScroll = true,
-            BackColor = BgColor,
+            BackColor = Bg,
             Margin = new Padding(0, 6, 0, 6),
         };
 
-        var addRow = new Panel { Dock = DockStyle.Bottom, Height = 42, BackColor = BgColor };
+        var addRow = new Panel { Dock = DockStyle.Bottom, Height = 42, BackColor = Bg };
         _addBtn = MakePrimaryButton("Add selected chat to selected group  →");
         _addBtn.Dock = DockStyle.Fill;
         _addBtn.Click += (_, _) => OnAddChatToGroup();
@@ -337,7 +324,7 @@ public sealed class EditorForm : Form
 
     private Panel BuildGroupsPane()
     {
-        var pane = new Panel { Dock = DockStyle.Fill, BackColor = BgColor, Padding = new Padding(8, 0, 0, 0) };
+        var pane = new Panel { Dock = DockStyle.Fill, BackColor = Bg, Padding = new Padding(8, 0, 0, 0) };
 
         var headerRow = new TableLayoutPanel
         {
@@ -345,7 +332,7 @@ public sealed class EditorForm : Form
             ColumnCount = 3,
             RowCount = 1,
             Height = 32,
-            BackColor = BgColor,
+            BackColor = Bg,
         };
         headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
@@ -358,11 +345,11 @@ public sealed class EditorForm : Form
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleLeft,
         };
-        var newGroupBtn = MakeSecondaryButton("+ Group");
+        var newGroupBtn = MakeSecondaryButton("+ Group", bordered: true);
         newGroupBtn.Dock = DockStyle.Fill;
         newGroupBtn.Margin = new Padding(0, 0, 6, 0);
         newGroupBtn.Click += (_, _) => OnNewGroup();
-        var deleteBtn = MakeSecondaryButton("- Delete");
+        var deleteBtn = MakeSecondaryButton("- Delete", bordered: true);
         deleteBtn.Dock = DockStyle.Fill;
         deleteBtn.Click += (_, _) => OnDeleteSelected();
         headerRow.Controls.Add(lbl, 0, 0);
@@ -375,7 +362,7 @@ public sealed class EditorForm : Form
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
             AutoScroll = true,
-            BackColor = BgColor,
+            BackColor = Bg,
             Margin = new Padding(0, 6, 0, 0),
         };
 
@@ -493,7 +480,7 @@ public sealed class EditorForm : Form
         var row = new Panel { Dock = DockStyle.Fill, BackColor = Surface };
         colorBox = MakeTextBox();
         colorBox.Dock = DockStyle.Fill;
-        var pickBtn = MakeSecondaryButton("Pick…");
+        var pickBtn = MakeSecondaryButton("Pick…", bordered: true);
         pickBtn.Dock = DockStyle.Right;
         pickBtn.Width = 64;
         pickBtn.Margin = new Padding(6, 0, 0, 0);
@@ -889,7 +876,7 @@ public sealed class EditorForm : Form
     {
         var newConfig = new PresetsConfig
         {
-            SchemaVersion = 2,
+            SchemaVersion = PresetsConfig.CurrentSchemaVersion,
             Settings = _settings,
             Tabs = _tabs,
             Groups = _groups,
@@ -945,27 +932,12 @@ public sealed class EditorForm : Form
         return args;
     }
 
-    private static Color? TryParseHex(string? hex)
-    {
-        if (string.IsNullOrEmpty(hex)) return null;
-        if (hex.StartsWith('#')) hex = hex[1..];
-        if (hex.Length != 6) return null;
-        try
-        {
-            return Color.FromArgb(
-                Convert.ToInt32(hex[..2], 16),
-                Convert.ToInt32(hex.Substring(2, 2), 16),
-                Convert.ToInt32(hex.Substring(4, 2), 16));
-        }
-        catch { return null; }
-    }
-
-    // ====== Button factories ======
+    // ====== Editor-specific control factories (textbox/combo use a darker input bg) ======
 
     private static TextBox MakeTextBox() => new()
     {
         Dock = DockStyle.Fill,
-        BackColor = Color.FromArgb(20, 20, 24),
+        BackColor = InputBg,
         ForeColor = TextPrimary,
         BorderStyle = BorderStyle.FixedSingle,
         Font = new Font("Segoe UI", 9F),
@@ -978,7 +950,7 @@ public sealed class EditorForm : Form
         var cb = new ComboBox
         {
             Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(20, 20, 24),
+            BackColor = InputBg,
             ForeColor = TextPrimary,
             FlatStyle = FlatStyle.Flat,
             Font = new Font("Segoe UI", 9F),
@@ -986,57 +958,6 @@ public sealed class EditorForm : Form
         };
         cb.Items.AddRange(items);
         return cb;
-    }
-
-    private static Button MakePrimaryButton(string text)
-    {
-        var btn = new Button
-        {
-            Text = text,
-            BackColor = AccentBlue,
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
-            UseVisualStyleBackColor = false,
-        };
-        btn.FlatAppearance.BorderSize = 0;
-        btn.FlatAppearance.MouseOverBackColor = AccentBlueHover;
-        btn.FlatAppearance.MouseDownBackColor = AccentBlue;
-        return btn;
-    }
-
-    private static Button MakeSecondaryButton(string text)
-    {
-        var btn = new Button
-        {
-            Text = text,
-            BackColor = Surface,
-            ForeColor = TextPrimary,
-            FlatStyle = FlatStyle.Flat,
-            UseVisualStyleBackColor = false,
-            Font = new Font("Segoe UI", 9F),
-        };
-        btn.FlatAppearance.BorderSize = 1;
-        btn.FlatAppearance.BorderColor = Border;
-        btn.FlatAppearance.MouseOverBackColor = SurfaceHover;
-        btn.FlatAppearance.MouseDownBackColor = Surface;
-        return btn;
-    }
-
-    private static Button MakeCloseButton()
-    {
-        var btn = new Button
-        {
-            Text = "×",
-            BackColor = BgColor,
-            ForeColor = TextMuted,
-            FlatStyle = FlatStyle.Flat,
-            UseVisualStyleBackColor = false,
-            Font = new Font("Segoe UI", 14F, FontStyle.Bold),
-        };
-        btn.FlatAppearance.BorderSize = 0;
-        btn.FlatAppearance.MouseOverBackColor = AccentRed;
-        return btn;
     }
 
     // ====== Custom item controls (decoupled selection) ======
@@ -1169,7 +1090,7 @@ public sealed class EditorForm : Form
         {
             _tab = tab;
             Height = 30;
-            BackColor = BgColor;
+            BackColor = Bg;
             Margin = new Padding(20, 0, 0, 2);
             DoubleBuffered = true;
             Cursor = Cursors.Hand;
@@ -1183,7 +1104,7 @@ public sealed class EditorForm : Form
                 Width = 28,
                 Dock = DockStyle.Right,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = BgColor,
+                BackColor = Bg,
                 ForeColor = TextMuted,
                 Font = new Font("Segoe UI", 11F, FontStyle.Bold),
             };
@@ -1196,7 +1117,7 @@ public sealed class EditorForm : Form
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            var bg = _selected ? SurfaceSelected : (_hovered ? SurfaceHover : BgColor);
+            var bg = _selected ? SurfaceSelected : (_hovered ? SurfaceHover : Bg);
             g.Clear(bg);
 
             var accent = TryParseHex(_tab.TabColor) ?? Color.Gray;

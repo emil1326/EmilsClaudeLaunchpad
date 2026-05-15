@@ -2,6 +2,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EmilsClaudeLaunchpad.Config.Legacy;
+using EmilsClaudeLaunchpad.Startup;
 
 namespace EmilsClaudeLaunchpad.Config;
 
@@ -32,6 +33,9 @@ public static class ConfigStore
         {
             var seed = BuildSeed();
             Save(seed);
+            // Opt the user into autostart by default on first run. The toggle in the launcher
+            // can flip it back off; the registry stays as the source of truth from then on.
+            try { AutoStartManager.Enable(); } catch { /* best-effort */ }
             return seed;
         }
 
@@ -101,7 +105,7 @@ public static class ConfigStore
 
         return new PresetsConfig
         {
-            SchemaVersion = 2,
+            SchemaVersion = PresetsConfig.CurrentSchemaVersion,
             Settings = v1.Settings,
             Tabs = tabs,
             Groups = groups,
@@ -172,8 +176,8 @@ public static class ConfigStore
 
         return new PresetsConfig
         {
-            SchemaVersion = 2,
-            Settings = new AppSettings { DefaultShell = "powershell", Autostart = false },
+            SchemaVersion = PresetsConfig.CurrentSchemaVersion,
+            Settings = new AppSettings { DefaultShell = "powershell" },
             Tabs = new[] { captureTab, workspaceBackend, workspaceFrontend },
             Groups = new[]
             {

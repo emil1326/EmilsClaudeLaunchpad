@@ -1,23 +1,22 @@
 using Velopack;
 using Velopack.Sources;
-using VpkUpdateManager = Velopack.UpdateManager;
 
 namespace EmilsClaudeLaunchpad.Update;
 
-public sealed class UpdateManager
+public sealed class AppUpdateManager
 {
     public const string RepoUrl = "https://github.com/emil1326/EmilsClaudeLaunchpad";
 
     private readonly Action<string, string> _notify;
-    private readonly VpkUpdateManager? _vmgr;
+    private readonly UpdateManager? _vmgr;
 
-    public UpdateManager(Action<string, string> notify)
+    public AppUpdateManager(Action<string, string> notify)
     {
         _notify = notify;
         try
         {
             var source = new GithubSource(RepoUrl, accessToken: string.Empty, prerelease: false);
-            _vmgr = new VpkUpdateManager(source);
+            _vmgr = new UpdateManager(source);
         }
         catch
         {
