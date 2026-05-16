@@ -195,18 +195,17 @@ public sealed class EditorForm : Form
         root.Controls.Add(_detailScroll, 0, 3);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 262));
 
-        // === Footer: status + Settings + Cancel/Save ===
+        // === Footer: status + Cancel/Save ===
         var footer = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            ColumnCount = 4,
+            ColumnCount = 3,
             RowCount = 1,
             Height = 42,
             BackColor = Bg,
             Margin = new Padding(0, 12, 0, 0),
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
 
@@ -222,23 +221,17 @@ public sealed class EditorForm : Form
         };
         footer.Controls.Add(_statusLabel, 0, 0);
 
-        var settingsBtn = MakeSecondaryButton("Settings", bordered: true);
-        settingsBtn.Dock = DockStyle.Fill;
-        settingsBtn.Margin = new Padding(0, 0, 8, 0);
-        settingsBtn.Click += (_, _) => OpenSettings();
-        footer.Controls.Add(settingsBtn, 1, 0);
-
         var cancelBtn = MakeSecondaryButton("Cancel", bordered: true);
         cancelBtn.Dock = DockStyle.Fill;
         cancelBtn.Margin = new Padding(0, 0, 8, 0);
         cancelBtn.Click += (_, _) => Close();
-        footer.Controls.Add(cancelBtn, 2, 0);
+        footer.Controls.Add(cancelBtn, 1, 0);
 
         var saveBtn = MakePrimaryButton("Save and close");
         saveBtn.Dock = DockStyle.Fill;
         saveBtn.Margin = new Padding(0, 0, 18, 0); // keep resize-grip area clear
         saveBtn.Click += (_, _) => SaveAndClose();
-        footer.Controls.Add(saveBtn, 3, 0);
+        footer.Controls.Add(saveBtn, 2, 0);
 
         root.Controls.Add(footer, 0, 4);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
@@ -1009,21 +1002,6 @@ public sealed class EditorForm : Form
         else
         {
             SetStatus("Select a group header or a tab row first.", true);
-        }
-    }
-
-    private void OpenSettings()
-    {
-        using var dlg = new SettingsForm(_settings);
-        if (dlg.ShowDialog(this) == DialogResult.OK && dlg.Result is not null)
-        {
-            _settings = dlg.Result;
-            // Honest status text: autostart hits the registry inside the dialog (it's not in the
-            // JSON config), so it's already live. Shell + auto-update changes ride along with the
-            // editor's Save and close.
-            SetStatus(dlg.AutostartChanged
-                ? "Settings updated. Autostart applied immediately; shell/updates take effect on Save and close."
-                : "Settings updated. They take effect on Save and close.", false);
         }
     }
 

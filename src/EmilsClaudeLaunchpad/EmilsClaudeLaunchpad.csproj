@@ -8,7 +8,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>EmilsClaudeLaunchpad</RootNamespace>
     <AssemblyName>EmilsClaudeLaunchpad</AssemblyName>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
+    <!-- Populates the Details tab of File Explorer Properties. Version is derived from <Version> above. -->
+    <Product>Emil's Claude Launchpad</Product>
+    <AssemblyTitle>Emil's Claude Launchpad</AssemblyTitle>
+    <Description>Tray app that restores a workspace of Claude Code sessions in one click.</Description>
+    <Authors>Emilien Devauchelle</Authors>
+    <Company>Emil's Work</Company>
+    <Copyright>Copyright (c) 2026 Emilien Devauchelle</Copyright>
   </PropertyGroup>
 
   <!-- Publish-only properties: only kick in on `dotnet publish`, keeping `dotnet build` fast and warning-free.

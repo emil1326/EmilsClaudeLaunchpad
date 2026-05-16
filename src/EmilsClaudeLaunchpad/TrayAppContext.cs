@@ -64,7 +64,7 @@ public sealed class TrayAppContext : ApplicationContext
         // Always show — never toggle off — when triggered by a 2nd-launch ping. The user's intent
         // is "bring it up", not "blink it away if it happens to be visible."
         if (_form is { IsHandleCreated: true } f)
-            f.BeginInvoke(new Action(ShowLauncher));
+            f.BeginInvoke(new Action(ShowLauncherAtTray));
     }
 
     private void ToggleLauncher()
@@ -74,10 +74,13 @@ public sealed class TrayAppContext : ApplicationContext
         _form.ShowNearCursor();
     }
 
-    private void ShowLauncher()
+    // IPC wake path: position the form near the tray (bottom-right of working area). The cursor
+    // could be anywhere — desktop, browser, wherever the user double-clicked the .exe — and we
+    // don't want the form to materialize in the middle of that.
+    private void ShowLauncherAtTray()
     {
         EnsureForm();
-        if (!_form!.Visible) _form.ShowNearCursor();
+        if (!_form!.Visible) _form.ShowNearTray();
         else { _form.BringToFront(); _form.Activate(); }
     }
 

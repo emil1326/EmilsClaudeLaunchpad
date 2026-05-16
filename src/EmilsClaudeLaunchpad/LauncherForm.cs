@@ -16,7 +16,6 @@ public sealed class LauncherForm : Form
     private readonly Action<string, string> _notify;
 
     private FlowLayoutPanel _sessionsPanel = null!;
-    private CheckBox _autostartCheckbox = null!;
     private PresetsConfig _config = new();
 
     public LauncherForm(SessionLauncher launcher, AppUpdateManager updater, Action<string, string> notify)
@@ -112,6 +111,8 @@ public sealed class LauncherForm : Form
         root.Controls.Add(launchAll, 0, 4);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
 
+        // 3-column action row: Edit / Reload / Settings cogwheel. Updates moved into the Settings
+        // dialog ("Check now" button) — it didn't earn a permanent spot in the launcher chrome.
         var actionRow = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
@@ -121,38 +122,25 @@ public sealed class LauncherForm : Form
             BackColor = Bg,
             Margin = new Padding(0, 0, 0, 8),
         };
-        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
-        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
-        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
+        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+        actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10));
         var editBtn = MakeSecondaryButton("Edit");
         editBtn.Click += (_, _) => OnEditConfig();
         var reloadBtn = MakeSecondaryButton("Reload");
         reloadBtn.Click += (_, _) => ReloadConfig();
-        var updatesBtn = MakeSecondaryButton("Updates");
-        updatesBtn.Click += async (_, _) => await _updater.CheckAndApplyAsync();
-        editBtn.Dock = reloadBtn.Dock = updatesBtn.Dock = DockStyle.Fill;
+        var settingsBtn = MakeSecondaryButton("⚙");
+        settingsBtn.Font = new Font("Segoe UI Symbol", 11F);
+        settingsBtn.Click += (_, _) => OnOpenSettings();
+        editBtn.Dock = reloadBtn.Dock = settingsBtn.Dock = DockStyle.Fill;
         editBtn.Margin = new Padding(0, 0, 3, 0);
         reloadBtn.Margin = new Padding(3, 0, 3, 0);
-        updatesBtn.Margin = new Padding(3, 0, 0, 0);
+        settingsBtn.Margin = new Padding(3, 0, 0, 0);
         actionRow.Controls.Add(editBtn, 0, 0);
         actionRow.Controls.Add(reloadBtn, 1, 0);
-        actionRow.Controls.Add(updatesBtn, 2, 0);
+        actionRow.Controls.Add(settingsBtn, 2, 0);
         root.Controls.Add(actionRow, 0, 5);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-
-        _autostartCheckbox = new CheckBox
-        {
-            Text = "Autostart at login",
-            Dock = DockStyle.Top,
-            ForeColor = TextPrimary,
-            BackColor = Bg,
-            Margin = new Padding(2, 0, 0, 8),
-            FlatStyle = FlatStyle.Flat,
-            AutoSize = true,
-        };
-        _autostartCheckbox.CheckedChanged += OnAutostartToggled;
-        root.Controls.Add(_autostartCheckbox, 0, 6);
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
 
         var footer = new TableLayoutPanel
         {
@@ -177,7 +165,7 @@ public sealed class LauncherForm : Form
         exitBtn.Dock = DockStyle.Fill;
         footer.Controls.Add(versionLabel, 0, 0);
         footer.Controls.Add(exitBtn, 1, 0);
-        root.Controls.Add(footer, 0, 7);
+        root.Controls.Add(footer, 0, 6);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
 
         Controls.Add(root);
@@ -195,6 +183,18 @@ public sealed class LauncherForm : Form
         Activate();
     }
 
+    // Used when the form is woken by something other than a tray click (IPC ping from a 2nd
+    // launch, where the cursor might be anywhere). Anchored to the bottom-right of the primary
+    // working area — directly above where tray icons live on a default Windows layout.
+    public void ShowNearTray()
+    {
+        ReloadConfig();
+        var screen = Screen.PrimaryScreen?.WorkingArea ?? Screen.FromPoint(Cursor.Position).WorkingArea;
+        Location = new Point(screen.Right - Width - 10, screen.Bottom - Height - 10);
+        Show();
+        Activate();
+    }
+
     private void ReloadConfig()
     {
         try { _config = ConfigStore.Load(); }
@@ -204,9 +204,6 @@ public sealed class LauncherForm : Form
             _config = new PresetsConfig();
         }
         PopulateSessionButtons();
-        _autostartCheckbox.CheckedChanged -= OnAutostartToggled;
-        _autostartCheckbox.Checked = AutoStartManager.IsEnabled;
-        _autostartCheckbox.CheckedChanged += OnAutostartToggled;
     }
 
     private void PopulateSessionButtons()
@@ -267,17 +264,28 @@ public sealed class LauncherForm : Form
         // Launcher stays hidden after editor closes — user can click the tray again to reopen.
     }
 
-    private void OnAutostartToggled(object? sender, EventArgs e)
+    // Opens the cogwheel dialog. Every setting commits live inside (autostart → registry,
+    // others → dlg.Result), so on close we just persist the non-registry bits to presets.json.
+    // The updater is passed in so the dialog can host a "Check now" button without coupling
+    // SettingsForm to AppUpdateManager directly.
+    private void OnOpenSettings()
     {
-        try
+        Hide();
+        using var dlg = new SettingsForm(_config.Settings, () => _updater.CheckAndApplyAsync());
+        dlg.ShowDialog();
+        if (!dlg.Result.Equals(_config.Settings))
         {
-            if (_autostartCheckbox.Checked) AutoStartManager.Enable();
-            else AutoStartManager.Disable();
+            try
+            {
+                var updated = _config with { Settings = dlg.Result };
+                ConfigStore.Save(updated);
+            }
+            catch (Exception ex)
+            {
+                _notify("Settings save failed", ex.Message);
+            }
         }
-        catch (Exception ex)
-        {
-            _notify("Autostart toggle failed", ex.Message);
-        }
+        ReloadConfig();
     }
 
     private Color PickGroupColor(GroupPreset group)

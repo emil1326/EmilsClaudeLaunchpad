@@ -31,24 +31,9 @@ If you renamed/moved a project folder, the tab will open, powershell will compla
 ## Quality of life
 
 ### Global hotkey to pop the launcher
-Right now you have to aim at the tray icon, which is a tiny target. A `RegisterHotKey` Win32 call for something like `Ctrl+Alt+L` (configurable in settings) would be wayyyy faster.
-
-### Reorder groups & tabs in the editor
-Currently the order is whatever the JSON file has, so reordering means editing the JSON. Up/down arrow buttons on each group header (and each tab row) would do it.
-
-### Second-launch behavior
-`Startup/SingleInstance.cs` exits silently when there's already an instance running. So if you double-click the .exe a second time, nothing visible happens. A tiny named-pipe protocol where the second instance tells the first one "show your launcher and die" would be much friendlier.
-
-### Search/filter in the editor's chat list
-Not urgent right now, but if you accumulate 50+ chats it'll get hard to find the right one. A textbox above "Available Claude chats" that filters live (by folder name, preview text, or session id).
-
-### Settings dialog
-`AppSettings.DefaultShell` is editable in JSON only. A small settings dialog (shell, autostart, hotkey, balloon notifications on/off, backup retention) would clean that up.
+Right now you have to aim at the tray icon, which is a tiny target. A `RegisterHotKey` Win32 call for something like `Ctrl+Alt+L` (configurable in settings) would be way faster.
 
 ## Smaller stuff
-
-### "Duplicate group" in the editor
-For when you want a variant of an existing group (same set of tabs, different name, different color). Right-click a group header → "Duplicate".
 
 ### "Show me the wt.exe command"
 A debug button that dumps the exact `ProcessStartInfo.ArgumentList` that would be passed to `wt.exe`. Useful when launches misbehave and you want to copy-paste the command into a terminal to see what's wrong.
