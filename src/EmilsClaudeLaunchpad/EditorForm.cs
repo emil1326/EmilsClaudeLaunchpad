@@ -608,7 +608,13 @@ public sealed class EditorForm : Form
         // bottom of a long list snaps the view back to the top.
         var savedScroll = _groupList.AutoScrollPosition;
         _groupList.SuspendLayout();
+        // Dispose old children explicitly. Controls.Clear() removes references but leaves the
+        // controls (and any sibling components like ContextMenuStrip) alive until GC, which adds
+        // up over many rebuilds (drag-drops, duplicates, deletes, saves). Snapshot first because
+        // Control.Dispose() removes the control from its parent, mutating Controls mid-iteration.
+        var oldChildren = _groupList.Controls.Cast<Control>().ToArray();
         _groupList.Controls.Clear();
+        foreach (var c in oldChildren) c.Dispose();
         if (_groups.Count == 0)
         {
             _groupList.Controls.Add(EmptyLabel("No groups yet.\nClick '+ Group' to create one."));
@@ -620,6 +626,7 @@ public sealed class EditorForm : Form
                 var header = new GroupHeader(grp) { Width = _groupList.ClientSize.Width - 24 };
                 header.OnClicked += () => SelectGroup(grp);
                 header.OnDragInitiate += payload => header.DoDragDrop(new DataObject(typeof(DragPayload).FullName!, payload), DragDropEffects.Move);
+                header.ContextMenuStrip = BuildGroupContextMenu(grp);
                 _groupList.Controls.Add(header);
 
                 foreach (var tabId in grp.TabIds)
@@ -881,6 +888,76 @@ public sealed class EditorForm : Form
         RefreshGroups();
         RefreshChats();
         SetStatus("Tab removed from group.", false);
+    }
+
+    private ContextMenuStrip BuildGroupContextMenu(GroupPreset grp)
+    {
+        var menu = new ContextMenuStrip
+        {
+            BackColor = Surface,
+            ForeColor = TextPrimary,
+            ShowImageMargin = false,
+            Renderer = new ToolStripProfessionalRenderer(new DarkMenuColors()),
+        };
+        var dup = new ToolStripMenuItem("Duplicate group") { ForeColor = TextPrimary };
+        dup.Click += (_, _) => OnDuplicateGroup(grp);
+        menu.Items.Add(dup);
+        return menu;
+    }
+
+    // Minimal palette so the context menu doesn't flash the default white system theme on dark BG.
+    private sealed class DarkMenuColors : ProfessionalColorTable
+    {
+        public override Color MenuItemSelected => SurfaceHover;
+        public override Color MenuItemSelectedGradientBegin => SurfaceHover;
+        public override Color MenuItemSelectedGradientEnd => SurfaceHover;
+        public override Color MenuItemBorder => Border;
+        public override Color ToolStripDropDownBackground => Surface;
+        public override Color ImageMarginGradientBegin => Surface;
+        public override Color ImageMarginGradientMiddle => Surface;
+        public override Color ImageMarginGradientEnd => Surface;
+    }
+
+    private void OnDuplicateGroup(GroupPreset src)
+    {
+        // Each tab is cloned with a brand-new id so editing the copy's title/color/etc. doesn't
+        // bleed into the original. SessionId is preserved on purpose — the duplicated group resumes
+        // the same Claude chat as the source. (The cross-group "tab in N groups" badge will show
+        // for any chat that ends up shared this way.)
+        var newTabIds = new List<string>(src.TabIds.Count);
+        foreach (var oldTabId in src.TabIds)
+        {
+            var oldTab = _tabs.FirstOrDefault(t => t.Id == oldTabId);
+            if (oldTab is null) continue;
+            var newTab = oldTab with { Id = $"tab-{Guid.NewGuid().ToString("N")[..8]}" };
+            _tabs.Add(newTab);
+            newTabIds.Add(newTab.Id);
+        }
+
+        var copy = new GroupPreset
+        {
+            Id = $"group-{Guid.NewGuid().ToString("N")[..8]}",
+            Title = src.Title + " (copy)",
+            Color = src.Color,
+            TabIds = newTabIds,
+            Window = src.Window,
+        };
+
+        var srcIdx = _groups.FindIndex(g => g.Id == src.Id);
+        var insertAt = srcIdx < 0 ? _groups.Count : srcIdx + 1;
+        _groups.Insert(insertAt, copy);
+
+        _selectedItem = copy;
+        RefreshGroups();
+        RefreshChats();
+        PopulateDetailFromGroup(copy);
+        // Warn the user about the SessionId-sharing footgun. Launching both groups would have
+        // two `claude --resume <same-uuid>` racing for the same session file. The badge "in N
+        // groups" on each chat will also start showing 2 for everything that was duplicated.
+        SetStatus(newTabIds.Count == 0
+            ? $"Duplicated '{src.Title}' → '{copy.Title}'."
+            : $"Duplicated '{src.Title}' → '{copy.Title}'. Heads up: tabs share the same Claude sessions as the original — launching both groups will conflict.",
+            isError: false);
     }
 
     private void OnNewGroup()
