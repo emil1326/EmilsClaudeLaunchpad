@@ -364,7 +364,12 @@ public sealed class EditorForm : Form
             AutoScroll = true,
             BackColor = Bg,
             Margin = new Padding(0, 6, 0, 0),
+            AllowDrop = true,
         };
+        _groupList.DragEnter += OnGroupListDragEnter;
+        _groupList.DragOver += OnGroupListDragOver;
+        _groupList.DragLeave += OnGroupListDragLeave;
+        _groupList.DragDrop += OnGroupListDragDrop;
 
         pane.Controls.Add(_groupList);
         pane.Controls.Add(headerRow);
@@ -548,6 +553,9 @@ public sealed class EditorForm : Form
 
     private void RefreshGroups()
     {
+        // Preserve scroll position across the rebuild — without this, dropping a tab near the
+        // bottom of a long list snaps the view back to the top.
+        var savedScroll = _groupList.AutoScrollPosition;
         _groupList.SuspendLayout();
         _groupList.Controls.Clear();
         if (_groups.Count == 0)
@@ -560,21 +568,25 @@ public sealed class EditorForm : Form
             {
                 var header = new GroupHeader(grp) { Width = _groupList.ClientSize.Width - 24 };
                 header.OnClicked += () => SelectGroup(grp);
+                header.OnDragInitiate += payload => header.DoDragDrop(new DataObject(typeof(DragPayload).FullName!, payload), DragDropEffects.Move);
                 _groupList.Controls.Add(header);
 
                 foreach (var tabId in grp.TabIds)
                 {
                     var tab = _tabs.FirstOrDefault(t => t.Id == tabId);
                     if (tab is null) continue;
-                    var row = new TabRow(tab) { Width = _groupList.ClientSize.Width - 24 };
+                    var row = new TabRow(tab, grp.Id) { Width = _groupList.ClientSize.Width - 24 };
                     row.OnClicked += () => SelectTab(tab);
                     row.OnRemoveClicked += () => OnRemoveTabFromGroup(grp, tabId);
+                    row.OnDragInitiate += payload => row.DoDragDrop(new DataObject(typeof(DragPayload).FullName!, payload), DragDropEffects.Move);
                     _groupList.Controls.Add(row);
                 }
             }
             ReapplyItemSelection();
         }
         _groupList.ResumeLayout();
+        // AutoScrollPosition reads as a negative point but writes as positive — flip the sign.
+        _groupList.AutoScrollPosition = new Point(-savedScroll.X, -savedScroll.Y);
     }
 
     private Label EmptyLabel(string text) => new()
@@ -893,6 +905,251 @@ public sealed class EditorForm : Form
         }
     }
 
+    // ====== Drag & drop reorder ======
+
+    // Payload travels through DataObject as the only token of a drag — kind tells us what we're
+    // dragging, OriginGroupId is required for tabs (so we know where to remove from).
+    private sealed record DragPayload(string Kind, string Id, string? OriginGroupId);
+
+    private void OnGroupListDragEnter(object? sender, DragEventArgs e)
+    {
+        e.Effect = e.Data?.GetData(typeof(DragPayload)) is DragPayload
+            ? DragDropEffects.Move
+            : DragDropEffects.None;
+    }
+
+    private void OnGroupListDragOver(object? sender, DragEventArgs e)
+    {
+        if (e.Data?.GetData(typeof(DragPayload)) is not DragPayload payload)
+        {
+            e.Effect = DragDropEffects.None;
+            return;
+        }
+
+        var clientPt = _groupList.PointToClient(new Point(e.X, e.Y));
+        var slot = ResolveDropSlot(payload, clientPt);
+        ClearAllInsertionIndicators();
+        if (slot is null)
+        {
+            e.Effect = DragDropEffects.None;
+            return;
+        }
+
+        slot.Value.PaintHint();
+        e.Effect = DragDropEffects.Move;
+    }
+
+    private void OnGroupListDragLeave(object? sender, EventArgs e) => ClearAllInsertionIndicators();
+
+    private void OnGroupListDragDrop(object? sender, DragEventArgs e)
+    {
+        ClearAllInsertionIndicators();
+        if (e.Data?.GetData(typeof(DragPayload)) is not DragPayload payload) return;
+
+        var clientPt = _groupList.PointToClient(new Point(e.X, e.Y));
+        var slot = ResolveDropSlot(payload, clientPt);
+        if (slot is null) return;
+
+        if (payload.Kind == "group")
+            ApplyGroupMove(payload.Id, slot.Value.GroupTargetIndex!.Value);
+        else
+            ApplyTabMove(payload.Id, payload.OriginGroupId!, slot.Value.TabTargetGroupId!, slot.Value.TabTargetIndex!.Value);
+    }
+
+    // A resolved drop slot. For group drags we know an index into _groups. For tab drags we
+    // know the destination group + the index within its TabIds. PaintHint sets the insertion
+    // line on the right child for visual feedback during DragOver.
+    private readonly struct DropSlot
+    {
+        public int? GroupTargetIndex { get; init; }
+        public string? TabTargetGroupId { get; init; }
+        public int? TabTargetIndex { get; init; }
+        public Action PaintHint { get; init; }
+    }
+
+    private DropSlot? ResolveDropSlot(DragPayload payload, Point clientPt)
+    {
+        var children = _groupList.Controls.Cast<Control>().ToList();
+        if (children.Count == 0) return null;
+
+        // Find the child the cursor is over (within its vertical extent).
+        Control? hit = null;
+        bool topHalf = false;
+        foreach (var c in children)
+        {
+            if (clientPt.Y >= c.Top && clientPt.Y < c.Bottom)
+            {
+                hit = c;
+                topHalf = clientPt.Y < c.Top + c.Height / 2;
+                break;
+            }
+        }
+
+        // Above the first child or below the last child — snap to the closest end.
+        if (hit is null)
+        {
+            if (clientPt.Y < children[0].Top) { hit = children[0]; topHalf = true; }
+            else { hit = children[^1]; topHalf = false; }
+        }
+
+        if (payload.Kind == "group")
+            return ResolveGroupDrop(payload, hit, topHalf, children);
+        return ResolveTabDrop(payload, hit, topHalf, children);
+    }
+
+    private DropSlot? ResolveGroupDrop(DragPayload payload, Control hit, bool topHalf, List<Control> children)
+    {
+        // Find the group context for the hit row (a TabRow belongs to the most recent GroupHeader above it).
+        var hitGroupId = HitGroupId(hit, children);
+        if (hitGroupId is null) return null;
+        var hitIdx = _groups.FindIndex(g => g.Id == hitGroupId);
+        if (hitIdx < 0) return null;
+
+        // For group reorder we land before the hit group (top half) or after it (bottom half),
+        // regardless of whether the hovered row was the header or one of its tabs.
+        var targetIdx = topHalf ? hitIdx : hitIdx + 1;
+        var srcIdx = _groups.FindIndex(g => g.Id == payload.Id);
+        if (srcIdx < 0) return null;
+        if (targetIdx == srcIdx || targetIdx == srcIdx + 1) return null; // no-op move
+
+        // Insertion line goes above the target group's header (or below the last group's last child).
+        var hintTarget = FindGroupBoundaryControl(targetIdx, children);
+        var paintAtTop = targetIdx < _groups.Count;
+        return new DropSlot
+        {
+            GroupTargetIndex = targetIdx,
+            PaintHint = () =>
+            {
+                if (hintTarget is GroupHeader gh) gh.InsertionLineAtTop = true;
+                else if (hintTarget is TabRow tr) tr.InsertionLineAtBottom = !paintAtTop;
+            },
+        };
+    }
+
+    private DropSlot? ResolveTabDrop(DragPayload payload, Control hit, bool topHalf, List<Control> children)
+    {
+        var hitGroupId = HitGroupId(hit, children);
+        if (hitGroupId is null) return null;
+        var grp = _groups.FirstOrDefault(g => g.Id == hitGroupId);
+        if (grp is null) return null;
+
+        // Index within the target group's TabIds where the dropped tab will be inserted.
+        int destIdx;
+        if (hit is GroupHeader)
+        {
+            // Dropping on a group header → first slot in that group.
+            destIdx = 0;
+        }
+        else if (hit is TabRow tr)
+        {
+            var tabIdxInGroup = grp.TabIds.ToList().IndexOf(tr.TabId);
+            if (tabIdxInGroup < 0) return null;
+            destIdx = topHalf ? tabIdxInGroup : tabIdxInGroup + 1;
+        }
+        else return null;
+
+        // No-op detection: dropping a tab back where it already is (only when the source
+        // and destination groups match).
+        if (hitGroupId == payload.OriginGroupId)
+        {
+            var srcIdx = grp.TabIds.ToList().IndexOf(payload.Id);
+            if (srcIdx == destIdx || srcIdx == destIdx - 1) return null;
+        }
+        else if (grp.TabIds.Contains(payload.Id))
+        {
+            // Cross-group move into a group that already contains this tab — refuse so we
+            // don't end up with a duplicated id in the destination group.
+            return null;
+        }
+
+        return new DropSlot
+        {
+            TabTargetGroupId = hitGroupId,
+            TabTargetIndex = destIdx,
+            PaintHint = () =>
+            {
+                if (hit is GroupHeader gh) gh.InsertionLineAtBottom = true;
+                else if (hit is TabRow tr2)
+                {
+                    if (topHalf) tr2.InsertionLineAtTop = true;
+                    else tr2.InsertionLineAtBottom = true;
+                }
+            },
+        };
+    }
+
+    // For a TabRow, find the GroupId of the group it belongs to (last GroupHeader above it).
+    // For a GroupHeader, just return its own GroupId.
+    private static string? HitGroupId(Control hit, List<Control> children)
+    {
+        if (hit is GroupHeader gh) return gh.GroupId;
+        if (hit is TabRow)
+        {
+            var idx = children.IndexOf(hit);
+            for (int i = idx - 1; i >= 0; i--)
+                if (children[i] is GroupHeader g) return g.GroupId;
+        }
+        return null;
+    }
+
+    // Returns the control at which to paint the insertion line for a group target index.
+    // For a target index INSIDE the list, that's the GroupHeader at that index. For an index
+    // beyond the last group, it's the LAST control in the panel (so the line shows at its bottom).
+    private Control? FindGroupBoundaryControl(int targetGroupIndex, List<Control> children)
+    {
+        if (targetGroupIndex >= _groups.Count) return children.Count == 0 ? null : children[^1];
+        var targetGroupId = _groups[targetGroupIndex].Id;
+        return children.OfType<GroupHeader>().FirstOrDefault(gh => gh.GroupId == targetGroupId);
+    }
+
+    private void ClearAllInsertionIndicators()
+    {
+        foreach (Control c in _groupList.Controls)
+        {
+            if (c is GroupHeader gh) { gh.InsertionLineAtTop = gh.InsertionLineAtBottom = false; }
+            else if (c is TabRow tr) { tr.InsertionLineAtTop = tr.InsertionLineAtBottom = false; }
+        }
+    }
+
+    private void ApplyGroupMove(string groupId, int targetIndex)
+    {
+        var srcIdx = _groups.FindIndex(g => g.Id == groupId);
+        if (srcIdx < 0) return;
+        var moving = _groups[srcIdx];
+        _groups.RemoveAt(srcIdx);
+        if (targetIndex > srcIdx) targetIndex--; // compensate for the just-removed slot
+        targetIndex = Math.Clamp(targetIndex, 0, _groups.Count);
+        _groups.Insert(targetIndex, moving);
+        _selectedItem = moving;
+        RefreshGroups();
+        SetStatus($"Group '{moving.Title}' moved.", false);
+    }
+
+    private void ApplyTabMove(string tabId, string fromGroupId, string toGroupId, int destIndex)
+    {
+        var fromIdx = _groups.FindIndex(g => g.Id == fromGroupId);
+        var toIdx = _groups.FindIndex(g => g.Id == toGroupId);
+        if (fromIdx < 0 || toIdx < 0) return;
+
+        var fromTabs = _groups[fromIdx].TabIds.ToList();
+        var srcSlot = fromTabs.IndexOf(tabId);
+        if (srcSlot < 0) return;
+        fromTabs.RemoveAt(srcSlot);
+        _groups[fromIdx] = _groups[fromIdx] with { TabIds = fromTabs };
+
+        // Refetch the destination list AFTER mutating source — same group case shares the list.
+        var toTabs = _groups[toIdx].TabIds.ToList();
+        if (fromGroupId == toGroupId && srcSlot < destIndex) destIndex--;
+        destIndex = Math.Clamp(destIndex, 0, toTabs.Count);
+        toTabs.Insert(destIndex, tabId);
+        _groups[toIdx] = _groups[toIdx] with { TabIds = toTabs };
+
+        var movedTab = _tabs.FirstOrDefault(t => t.Id == tabId);
+        if (movedTab is not null) _selectedItem = movedTab;
+        RefreshGroups();
+        SetStatus(fromGroupId == toGroupId ? "Tab reordered." : $"Tab moved to '{_groups[toIdx].Title}'.", false);
+    }
+
     // ====== Helpers ======
 
     private void SetStatus(string text, bool isError)
@@ -1036,9 +1293,18 @@ public sealed class EditorForm : Form
     {
         private readonly GroupPreset _group;
         private bool _hovered, _selected;
+        private bool _insertionTop, _insertionBottom;
+        private Point _pressPt;
+        private bool _pressed;
+        private bool _dragging;
         public event Action? OnClicked;
+        public event Action<DragPayload>? OnDragInitiate;
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool IsSelected { get => _selected; set { _selected = value; Invalidate(); } }
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool InsertionLineAtTop { get => _insertionTop; set { if (_insertionTop != value) { _insertionTop = value; Invalidate(); } } }
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool InsertionLineAtBottom { get => _insertionBottom; set { if (_insertionBottom != value) { _insertionBottom = value; Invalidate(); } } }
         public string GroupId => _group.Id;
 
         public GroupHeader(GroupPreset group)
@@ -1051,7 +1317,36 @@ public sealed class EditorForm : Form
             Cursor = Cursors.Hand;
             MouseEnter += (_, _) => { _hovered = true; Invalidate(); };
             MouseLeave += (_, _) => { _hovered = false; Invalidate(); };
-            MouseDown += (_, _) => OnClicked?.Invoke();
+            MouseDown += OnMouseDownInternal;
+            MouseMove += OnMouseMoveInternal;
+            MouseUp += OnMouseUpInternal;
+        }
+
+        private void OnMouseDownInternal(object? s, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+            _pressed = true;
+            _dragging = false;
+            _pressPt = e.Location;
+        }
+
+        private void OnMouseMoveInternal(object? s, MouseEventArgs e)
+        {
+            if (!_pressed || _dragging) return;
+            var dx = Math.Abs(e.X - _pressPt.X);
+            var dy = Math.Abs(e.Y - _pressPt.Y);
+            if (dx <= SystemInformation.DragSize.Width && dy <= SystemInformation.DragSize.Height) return;
+            _dragging = true;
+            OnDragInitiate?.Invoke(new DragPayload("group", _group.Id, null));
+            _pressed = false;
+        }
+
+        private void OnMouseUpInternal(object? s, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+            if (_pressed && !_dragging) OnClicked?.Invoke();
+            _pressed = false;
+            _dragging = false;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -1073,22 +1368,38 @@ public sealed class EditorForm : Form
             TextRenderer.DrawText(g, $"{_group.TabIds.Count} tab(s)", smallFont,
                 new Rectangle(Width - 80, 0, 70, Height), TextDim,
                 TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
+
+            using var indPen = new Pen(AccentBlue, 2);
+            if (_insertionTop) g.DrawLine(indPen, 0, 1, Width, 1);
+            if (_insertionBottom) g.DrawLine(indPen, 0, Height - 1, Width, Height - 1);
         }
     }
 
     private sealed class TabRow : Panel, ISelectableItem
     {
         private readonly TabPreset _tab;
+        private readonly string _ownerGroupId;
         private bool _hovered, _selected;
+        private bool _insertionTop, _insertionBottom;
+        private Point _pressPt;
+        private bool _pressed;
+        private bool _dragging;
         public event Action? OnRemoveClicked;
         public event Action? OnClicked;
+        public event Action<DragPayload>? OnDragInitiate;
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool IsSelected { get => _selected; set { _selected = value; Invalidate(); } }
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool InsertionLineAtTop { get => _insertionTop; set { if (_insertionTop != value) { _insertionTop = value; Invalidate(); } } }
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool InsertionLineAtBottom { get => _insertionBottom; set { if (_insertionBottom != value) { _insertionBottom = value; Invalidate(); } } }
         public string TabId => _tab.Id;
+        public string OwnerGroupId => _ownerGroupId;
 
-        public TabRow(TabPreset tab)
+        public TabRow(TabPreset tab, string ownerGroupId)
         {
             _tab = tab;
+            _ownerGroupId = ownerGroupId;
             Height = 30;
             BackColor = Bg;
             Margin = new Padding(20, 0, 0, 2);
@@ -1096,7 +1407,9 @@ public sealed class EditorForm : Form
             Cursor = Cursors.Hand;
             MouseEnter += (_, _) => { _hovered = true; Invalidate(); };
             MouseLeave += (_, _) => { _hovered = false; Invalidate(); };
-            MouseDown += (_, _) => OnClicked?.Invoke();
+            MouseDown += OnMouseDownInternal;
+            MouseMove += OnMouseMoveInternal;
+            MouseUp += OnMouseUpInternal;
 
             var removeBtn = new Button
             {
@@ -1114,6 +1427,33 @@ public sealed class EditorForm : Form
             Controls.Add(removeBtn);
         }
 
+        private void OnMouseDownInternal(object? s, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+            _pressed = true;
+            _dragging = false;
+            _pressPt = e.Location;
+        }
+
+        private void OnMouseMoveInternal(object? s, MouseEventArgs e)
+        {
+            if (!_pressed || _dragging) return;
+            var dx = Math.Abs(e.X - _pressPt.X);
+            var dy = Math.Abs(e.Y - _pressPt.Y);
+            if (dx <= SystemInformation.DragSize.Width && dy <= SystemInformation.DragSize.Height) return;
+            _dragging = true;
+            OnDragInitiate?.Invoke(new DragPayload("tab", _tab.Id, _ownerGroupId));
+            _pressed = false;
+        }
+
+        private void OnMouseUpInternal(object? s, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+            if (_pressed && !_dragging) OnClicked?.Invoke();
+            _pressed = false;
+            _dragging = false;
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
@@ -1128,6 +1468,10 @@ public sealed class EditorForm : Form
             TextRenderer.DrawText(g, _tab.Title, font,
                 new Rectangle(22, 0, Width - 54, Height), TextPrimary,
                 TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+
+            using var indPen = new Pen(AccentBlue, 2);
+            if (_insertionTop) g.DrawLine(indPen, 0, 1, Width, 1);
+            if (_insertionBottom) g.DrawLine(indPen, 0, Height - 1, Width, Height - 1);
         }
     }
 }
