@@ -12,6 +12,8 @@ public sealed class EditorForm : Form
     private readonly AppSettings _settings;
 
     private IReadOnlyList<ChatRecord> _chats = Array.Empty<ChatRecord>();
+    private string _chatFilter = string.Empty;
+    private TextBox _chatSearchBox = null!;
     private FlowLayoutPanel _chatList = null!;
     private FlowLayoutPanel _groupList = null!;
     private Panel _detailScroll = null!;
@@ -315,8 +317,23 @@ public sealed class EditorForm : Form
         _addBtn.Click += (_, _) => OnAddChatToGroup();
         addRow.Controls.Add(_addBtn);
 
+        var searchRow = new Panel { Dock = DockStyle.Top, Height = 30, BackColor = Bg, Padding = new Padding(0, 4, 0, 4) };
+        _chatSearchBox = MakeTextBox();
+        _chatSearchBox.Dock = DockStyle.Fill;
+        _chatSearchBox.PlaceholderText = "Search chats by folder, preview, or session id…";
+        _chatSearchBox.TextChanged += (_, _) =>
+        {
+            _chatFilter = _chatSearchBox.Text.Trim();
+            PopulateChatList();
+        };
+        searchRow.Controls.Add(_chatSearchBox);
+
+        // Add order matters for stacked Top docks: layout iterates children high-z → low-z.
+        // headerRow added LAST = highest z = docks first = topmost slot. searchRow added before
+        // headerRow lands just below it. Don't reshuffle without re-checking.
         pane.Controls.Add(_chatList);
         pane.Controls.Add(addRow);
+        pane.Controls.Add(searchRow);
         pane.Controls.Add(headerRow);
         headerRow.Dock = DockStyle.Top;
         return pane;
@@ -523,6 +540,11 @@ public sealed class EditorForm : Form
     private void RefreshChats()
     {
         _chats = ChatScanner.DiscoverAll();
+        PopulateChatList();
+    }
+
+    private void PopulateChatList()
+    {
         _chatList.SuspendLayout();
         _chatList.Controls.Clear();
         if (_chats.Count == 0)
@@ -531,18 +553,40 @@ public sealed class EditorForm : Form
         }
         else
         {
-            foreach (var chat in _chats)
+            var visible = ApplyChatFilter(_chats, _chatFilter);
+            // Drop the selection if the active filter hides it — otherwise "Add to group" still
+            // operates on a chat the user can no longer see, which is confusing.
+            if (_selectedChat is not null && !visible.Any(c => c.SessionId == _selectedChat.SessionId))
+                _selectedChat = null;
+            if (visible.Count == 0)
             {
-                var item = new ChatItem(chat, GroupsContainingSession(chat.SessionId))
-                {
-                    Width = _chatList.ClientSize.Width - 24,
-                };
-                item.OnClicked += () => SelectChat(chat);
-                _chatList.Controls.Add(item);
+                _chatList.Controls.Add(EmptyLabel($"No chats match \"{_chatFilter}\"."));
             }
-            ReapplyChatSelection();
+            else
+            {
+                foreach (var chat in visible)
+                {
+                    var item = new ChatItem(chat, GroupsContainingSession(chat.SessionId))
+                    {
+                        Width = _chatList.ClientSize.Width - 24,
+                    };
+                    item.OnClicked += () => SelectChat(chat);
+                    _chatList.Controls.Add(item);
+                }
+                ReapplyChatSelection();
+            }
         }
         _chatList.ResumeLayout();
+    }
+
+    private static IReadOnlyList<ChatRecord> ApplyChatFilter(IReadOnlyList<ChatRecord> chats, string filter)
+    {
+        if (string.IsNullOrEmpty(filter)) return chats;
+        return chats.Where(c =>
+            c.SessionId.Contains(filter, StringComparison.OrdinalIgnoreCase)
+            || c.WorkingDir.Contains(filter, StringComparison.OrdinalIgnoreCase)
+            || c.Preview.Contains(filter, StringComparison.OrdinalIgnoreCase)
+        ).ToList();
     }
 
     private int GroupsContainingSession(string sessionId)
