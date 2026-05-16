@@ -3,6 +3,7 @@ namespace EmilsClaudeLaunchpad.Config;
 public sealed record AppSettings
 {
     public string DefaultShell { get; init; } = "powershell";
+    public bool AutoCheckUpdatesOnStartup { get; init; } = true;
 }
 
 public sealed record PresetsConfig

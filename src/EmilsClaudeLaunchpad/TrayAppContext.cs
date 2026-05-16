@@ -1,3 +1,4 @@
+using EmilsClaudeLaunchpad.Config;
 using EmilsClaudeLaunchpad.Launching;
 using EmilsClaudeLaunchpad.Startup;
 using EmilsClaudeLaunchpad.Update;
@@ -45,7 +46,11 @@ public sealed class TrayAppContext : ApplicationContext
         // at ctor time.
         _ipc = new IpcServer(WakeFromIpc);
 
-        _ = _updater.CheckOnStartupAsync();
+        // Honor the user's "auto check on startup" preference. Reading the config here is
+        // best-effort — if it's missing or corrupt, we fall through to default (check on).
+        var checkOnStartup = true;
+        try { checkOnStartup = ConfigStore.Load().Settings.AutoCheckUpdatesOnStartup; } catch { /* default */ }
+        if (checkOnStartup) _ = _updater.CheckOnStartupAsync();
     }
 
     private void OnTrayMouseUp(object? sender, MouseEventArgs e)
