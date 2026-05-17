@@ -25,6 +25,7 @@ public sealed class LauncherForm : Form
         _notify = notify;
 
         Text = "Emil's Claude Launchpad";
+        Icon = AppIcons.LoadApp(); // shown in Alt+Tab even though we're hidden from the taskbar
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         TopMost = true;

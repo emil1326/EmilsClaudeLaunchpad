@@ -12,8 +12,15 @@ Releases/
 *.user
 *.suo
 *.DotSettings.user
+*.lscache
 .DS_Store
 Thumbs.db
+
+# Icon design WIPs (Krita source files etc.) — only the exported .ico under
+# src/EmilsClaudeLaunchpad/Resources/ should be committed.
+icon/
+*.kra
+*.kra~
 
 # Velopack cache
 .velopack/

@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using EmilsClaudeLaunchpad.Config;
 using EmilsClaudeLaunchpad.Discovery;
+using EmilsClaudeLaunchpad.Ui;
 using static EmilsClaudeLaunchpad.Ui.Theme;
 
 namespace EmilsClaudeLaunchpad;
@@ -99,6 +100,7 @@ public sealed class EditorForm : Form
         _settings = config.Settings;
 
         Text = "Edit sessions and groups";
+        Icon = AppIcons.LoadApp(); // taskbar entry + Alt+Tab thumbnail
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(1000, 720);

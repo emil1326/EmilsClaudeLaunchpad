@@ -1,4 +1,4 @@
-# Local Velopack pack — produces Releases\Setup.exe without pushing anywhere.
+# Local Velopack pack -- produces Releases\Setup.exe without pushing anywhere.
 # Usage: .\build\publish.ps1 0.1.0
 [CmdletBinding()]
 param(
@@ -29,13 +29,17 @@ try {
 
     Write-Host "==> vpk pack"
     $releasesDir = Join-Path $root 'Releases'
+    $iconPath = Join-Path $root 'src\EmilsClaudeLaunchpad\Resources\app.ico'
+    $iconArgs = @()
+    if (Test-Path $iconPath) { $iconArgs = @('--icon', $iconPath) }
     dotnet vpk pack `
         --packId EmilsClaudeLaunchpad `
         --packVersion $Version `
         --packDir $publishDir `
         --mainExe EmilsClaudeLaunchpad.exe `
         --packTitle "Emil's Claude Launchpad" `
-        --outputDir $releasesDir
+        --outputDir $releasesDir `
+        @iconArgs
     if ($LASTEXITCODE -ne 0) { throw "vpk pack failed (exit $LASTEXITCODE)" }
 
     Write-Host ""

@@ -8,7 +8,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>EmilsClaudeLaunchpad</RootNamespace>
     <AssemblyName>EmilsClaudeLaunchpad</AssemblyName>
-    <Version>0.1.2</Version>
+    <Version>0.1.3</Version>
+    <!-- Embeds Resources\app.ico as the exe's Win32 icon resource (what File Explorer + taskbar
+         show for the .exe itself). Conditional so a missing file doesn't break the build during
+         the placeholder swap. -->
+    <ApplicationIcon Condition="Exists('Resources\app.ico')">Resources\app.ico</ApplicationIcon>
     <!-- Populates the Details tab of File Explorer Properties. Version is derived from <Version> above. -->
     <Product>Emil's Claude Launchpad</Product>
     <AssemblyTitle>Emil's Claude Launchpad</AssemblyTitle>
@@ -32,6 +36,15 @@
 
   <ItemGroup>
     <PackageReference Include="Velopack" Version="0.0.*" />
+  </ItemGroup>
+
+  <!-- Embed both .ico files inside the assembly so they survive PublishSingleFile bundling.
+       Loaded at runtime via GetManifestResourceStream (see Ui/AppIcons.cs). Conditional so
+       the build doesn't fail if a file's been removed. tray.ico is the NotifyIcon, app.ico
+       is set as Form.Icon on every window so Alt+Tab + the taskbar use it too. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\tray.ico" Condition="Exists('Resources\tray.ico')" />
+    <EmbeddedResource Include="Resources\app.ico" Condition="Exists('Resources\app.ico')" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,7 @@
 using EmilsClaudeLaunchpad.Config;
 using EmilsClaudeLaunchpad.Launching;
 using EmilsClaudeLaunchpad.Startup;
+using EmilsClaudeLaunchpad.Ui;
 using EmilsClaudeLaunchpad.Update;
 
 namespace EmilsClaudeLaunchpad;
@@ -19,7 +20,7 @@ public sealed class TrayAppContext : ApplicationContext
         _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _icon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = LoadTrayIcon(),
             Text = "Emil's Claude Launchpad",
             Visible = true,
         };
@@ -99,6 +100,10 @@ public sealed class TrayAppContext : ApplicationContext
             _icon.ShowBalloonTip(3000);
         }, null);
     }
+
+    // Falls back to a system icon if the embed is missing — placeholder/seed builds can
+    // ship without it. Loader lives in Ui.AppIcons so the same code paths handle tray + form.
+    private static Icon LoadTrayIcon() => AppIcons.LoadTray() ?? SystemIcons.Application;
 
     protected override void Dispose(bool disposing)
     {

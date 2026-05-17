@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using EmilsClaudeLaunchpad.Config;
 using EmilsClaudeLaunchpad.Startup;
+using EmilsClaudeLaunchpad.Ui;
 using static EmilsClaudeLaunchpad.Ui.Theme;
 
 namespace EmilsClaudeLaunchpad;
@@ -36,6 +37,7 @@ public sealed class SettingsForm : Form
         _result = initial;
         _onCheckUpdates = onCheckUpdates;
         Text = "Settings";
+        Icon = AppIcons.LoadApp();
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterScreen;
         // Width sized so help-text labels fit on one line; height tuned for 4 setting rows + footer.

@@ -52,12 +52,16 @@ jobs:
 
       - name: vpk pack
         run: |
+          $iconArgs = @()
+          $iconPath = 'src\EmilsClaudeLaunchpad\Resources\app.ico'
+          if (Test-Path $iconPath) { $iconArgs = @('--icon', $iconPath) }
           dotnet vpk pack `
             --packId EmilsClaudeLaunchpad `
             --packVersion ${{ steps.ver.outputs.version }} `
             --packDir publish `
             --mainExe EmilsClaudeLaunchpad.exe `
-            --packTitle "Emil's Claude Launchpad"
+            --packTitle "Emil's Claude Launchpad" `
+            @iconArgs
 
       - name: Upload release to GitHub
         run: |
